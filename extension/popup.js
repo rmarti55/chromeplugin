@@ -1,4 +1,5 @@
-import { getCurrentActivity, getSessionsForDay, aggregateByDomain, formatDuration, toDateStr } from "./db.js";
+import { getSessionsForDay, aggregateByDomain, formatDuration, toDateStr } from "./db.js";
+import { getLiveStatus } from "./live.js";
 
 const $ = (id) => document.getElementById(id);
 const todayStr = () => toDateStr(Date.now());
@@ -14,12 +15,17 @@ function openDashboard() {
 }
 
 // Live capture indicator — refreshed once a second while the popup is open.
+// Status reflects real idle state, so it isn't fooled by the popup stealing
+// window focus.
 async function renderLive() {
   const dot = $("dot");
   const text = $("liveText");
   try {
-    const a = await getCurrentActivity(Date.now());
-    if (a.status === "capturing") {
+    const a = await getLiveStatus(Date.now());
+    if (a.status === "paused") {
+      dot.className = "dot paused";
+      text.textContent = "Paused — you're idle";
+    } else if (a.domain) {
       dot.className = "dot capturing";
       text.textContent = "";
       text.appendChild(document.createTextNode("Capturing · "));
@@ -27,21 +33,13 @@ async function renderLive() {
       site.className = "mono";
       site.textContent = a.domain;
       text.appendChild(site);
-      text.appendChild(document.createTextNode(" · "));
-      const t = document.createElement("span");
-      t.className = "mono";
-      t.textContent = formatDuration(a.elapsedSeconds);
-      text.appendChild(t);
-    } else if (a.status === "paused") {
-      dot.className = "dot paused";
-      text.textContent = "Paused — no active page";
     } else {
-      dot.className = "dot";
-      text.textContent = "Ready — browse to start tracking";
+      dot.className = "dot capturing";
+      text.textContent = "Capturing your activity";
     }
   } catch {
-    dot.className = "dot";
-    text.textContent = "Ready";
+    dot.className = "dot capturing";
+    text.textContent = "Capturing";
   }
 }
 
