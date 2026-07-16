@@ -30,12 +30,18 @@ function webUrl(url) {
 function eventFromTab(type, tab) {
   const ev = { ts: Date.now(), type, tabId: tab?.id ?? null };
   if (tab && webUrl(tab.url)) {
-    ev.url = tab.url;
-    ev.title = tab.title || "";
+    let host = "";
     try {
-      ev.domain = new URL(tab.url).hostname;
+      host = new URL(tab.url).hostname.replace(/^www\./, "");
     } catch {
-      ev.domain = "unknown";
+      host = "";
+    }
+    // Only record a web page we can attribute to a real host. Without one we
+    // leave url unset so it reads as a non-web boundary (never a fake domain).
+    if (host) {
+      ev.url = tab.url;
+      ev.title = tab.title || host;
+      ev.domain = host;
     }
   }
   return ev;

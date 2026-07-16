@@ -1,10 +1,7 @@
-function fmt(seconds) {
-  const m = Math.round(seconds / 60);
-  if (m < 60) return `${m}m`;
-  return `${Math.floor(m / 60)}h ${m % 60}m`;
-}
+import { formatDuration } from "../../../db.js";
+import { categorize } from "../../../categorize.js";
 
-export function SessionsList({ sessions }) {
+export function SessionsList({ sessions, categoryCache }) {
   if (!sessions || sessions.length === 0) return null;
 
   return (
@@ -15,10 +12,14 @@ export function SessionsList({ sessions }) {
         {sessions.slice(0, 25).map((s) => (
           <div key={s.url} className="flex items-center justify-between text-sm gap-4">
             <div className="min-w-0">
-              <div className="text-slate-200 truncate">{s.title || s.url}</div>
-              <div className="text-slate-500 text-xs truncate">{s.domain}</div>
+              <div className="text-slate-200 truncate">{s.title || s.domain || s.url}</div>
+              <div className="text-slate-500 text-xs truncate">
+                {s.domain} · {categorize(s.domain, categoryCache)}
+              </div>
             </div>
-            <span className="text-indigo-400 font-medium shrink-0 w-16 text-right">{fmt(s.seconds)}</span>
+            <span className="text-indigo-400 font-medium shrink-0 w-20 text-right tabular-nums">
+              {formatDuration(s.seconds)}
+            </span>
           </div>
         ))}
       </div>

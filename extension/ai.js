@@ -12,7 +12,7 @@ import {
 } from "./db.js";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "anthropic/claude-sonnet-4-20250514";
+const DEFAULT_MODEL = "anthropic/claude-sonnet-4.5";
 
 function getSettings() {
   return new Promise((resolve) => {
@@ -58,14 +58,22 @@ Respond with ONLY valid JSON in this exact format:
   "goalAssessment": "see rule below",
   "categories": [ { "name": "Category Name", "minutes": 120, "percentage": 30 } ],
   "themes": [ { "name": "Theme description", "sites": ["domain1.com"], "minutes": 60 } ],
-  "timeline": [ { "hour": "9am", "activity": "Brief description of activity in this hour" } ]
+  "siteCategories": [ { "domain": "domain1.com", "category": "Category Name" } ]
 }
 
 Rules:
-- Categories are broad ("Software Development", "Social Media", "Entertainment", "Research", "Communication", "Shopping", "News", "Productivity").
+- Categories are broad ("Software Development", "Social Media", "Entertainment", "Research", "Communication", "Shopping", "News", "Productivity", "Finance", "Health", "Education", "Travel").
 - Themes are specific clusters ("Learning React hooks", "Job searching").
 - Percentages must sum to 100. Category minutes must sum to ${totalMinutes}.
+- "siteCategories" MUST include EVERY domain listed above, each mapped to its best-fit concrete category.
+- CRITICAL: never use "Other", "Unknown", "Uncategorized", "Miscellaneous", "Misc", "N/A", or an empty value anywhere. For anything ambiguous, choose the closest real category. Every name and category must be a specific, human-meaningful label.
 ${goalRule}`;
+}
+
+// Category names we refuse to display — always resolve to something concrete.
+const BANNED = /^(other|others|unknown|uncategori[sz]ed|misc(ellaneous)?|n\/?a|none|general|tbd|\?+)?$/i;
+function isBanned(name) {
+  return !name || typeof name !== "string" || BANNED.test(name.trim());
 }
 
 function extractJson(content) {
@@ -74,15 +82,37 @@ function extractJson(content) {
   return JSON.parse(match[0]);
 }
 
-// Coerce the model output into a well-formed analysis, tolerating omissions.
+const FALLBACK = "General Browsing";
+const clean = (name) => (isBanned(name) ? FALLBACK : name.trim());
+
+// Coerce the model output into a well-formed analysis, tolerating omissions and
+// scrubbing any banned/empty category labels down to a concrete fallback.
 function normalize(parsed) {
+  const categories = (Array.isArray(parsed.categories) ? parsed.categories : [])
+    .filter((c) => c && typeof c.name !== "undefined")
+    .map((c) => ({ ...c, name: clean(c.name) }));
+
+  const themes = (Array.isArray(parsed.themes) ? parsed.themes : [])
+    .filter((t) => t && !isBanned(t.name))
+    .map((t) => ({ ...t, sites: Array.isArray(t.sites) ? t.sites : [] }));
+
+  // domain (lowercased, no www) -> concrete category
+  const domainCategories = {};
+  if (Array.isArray(parsed.siteCategories)) {
+    for (const sc of parsed.siteCategories) {
+      if (!sc || !sc.domain) continue;
+      const host = String(sc.domain).toLowerCase().replace(/^www\./, "");
+      domainCategories[host] = clean(sc.category);
+    }
+  }
+
   return {
     summary: typeof parsed.summary === "string" ? parsed.summary : "",
     observation: typeof parsed.observation === "string" ? parsed.observation : "",
     goalAssessment: typeof parsed.goalAssessment === "string" ? parsed.goalAssessment : null,
-    categories: Array.isArray(parsed.categories) ? parsed.categories : [],
-    themes: Array.isArray(parsed.themes) ? parsed.themes : [],
-    timeline: Array.isArray(parsed.timeline) ? parsed.timeline : [],
+    categories,
+    themes,
+    domainCategories,
   };
 }
 
@@ -127,6 +157,12 @@ export async function analyzeDay(dateStr) {
   if (!content) throw new Error("Empty response from the AI model.");
 
   const parsed = normalize(extractJson(content));
+
+  // Merge the learned domain→category map into storage so the instant (no-AI)
+  // dashboard view shows real categories for these domains going forward.
+  const existing = (await chrome.storage.local.get("domainCategories")).domainCategories || {};
+  const mergedDomainCategories = { ...existing, ...parsed.domainCategories };
+  await chrome.storage.local.set({ domainCategories: mergedDomainCategories });
 
   const analysis = {
     date: dateStr,

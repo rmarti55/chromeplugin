@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   getSessionsForDay,
+  getHourlyForDay,
   aggregateByDomain,
   getAnalysis,
   listActivityDays,
@@ -13,30 +14,56 @@ import { CategoryChart } from "./components/CategoryChart.jsx";
 import { ThemeList } from "./components/ThemeList.jsx";
 import { Timeline } from "./components/Timeline.jsx";
 import { SessionsList } from "./components/SessionsList.jsx";
+import { LiveStatus } from "./components/LiveStatus.jsx";
+import { Settings } from "./components/Settings.jsx";
 
 const todayStr = () => toDateStr(Date.now());
 const hasChrome = typeof chrome !== "undefined" && chrome.runtime;
 
-function useDayData(date) {
+function useCategoryCache() {
+  const [cache, setCache] = useState(undefined);
+  useEffect(() => {
+    if (!hasChrome || !chrome.storage) return;
+    const load = () => chrome.storage.local.get("domainCategories", (d) => setCache(d.domainCategories || {}));
+    load();
+    // refresh when a summary run updates the map
+    chrome.storage.onChanged.addListener(load);
+    return () => chrome.storage.onChanged.removeListener(load);
+  }, []);
+  return cache;
+}
+
+function useDayData(date, cache) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    setLoading(true);
-    const sessions = await getSessionsForDay(date, Date.now());
-    const analysis = await getAnalysis(date);
+    const now = Date.now();
+    const [sessions, analysis, timeline] = await Promise.all([
+      getSessionsForDay(date, now),
+      getAnalysis(date),
+      getHourlyForDay(date, now),
+    ]);
     const topDomains = aggregateByDomain(sessions);
-    const totalMinutes = Math.round(sessions.reduce((s, x) => s + x.seconds, 0) / 60);
-    // Prefer AI categories when available, else the local heuristic buckets.
+    const totalSeconds = sessions.reduce((s, x) => s + x.seconds, 0);
+    // Prefer AI categories when present, else local (cache-aware) buckets.
     const categories =
-      analysis && analysis.categories?.length ? analysis.categories : categorizeSessions(sessions);
-    setData({ sessions, analysis, topDomains, totalMinutes, categories });
+      analysis && analysis.categories?.length ? analysis.categories : categorizeSessions(sessions, cache);
+    setData({ sessions, analysis, topDomains, totalSeconds, categories, timeline });
     setLoading(false);
-  }, [date]);
+  }, [date, cache]);
 
   useEffect(() => {
+    setLoading(true);
     load();
   }, [load]);
+
+  // Live refresh while viewing today.
+  useEffect(() => {
+    if (date !== todayStr()) return;
+    const id = setInterval(load, 3000);
+    return () => clearInterval(id);
+  }, [date, load]);
 
   return { data, loading, reload: load };
 }
@@ -47,7 +74,11 @@ export default function App() {
   const [days, setDays] = useState([]);
   const [summarizing, setSummarizing] = useState(false);
   const [msg, setMsg] = useState(null);
-  const { data, loading, reload } = useDayData(date);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const cache = useCategoryCache();
+  const { data, loading, reload } = useDayData(date, cache);
+
+  const isToday = date === todayStr();
 
   useEffect(() => {
     Promise.all([listActivityDays(), listAnalysisDays()]).then(([a, b]) => {
@@ -62,13 +93,9 @@ export default function App() {
     setMsg(null);
     chrome.runtime.sendMessage({ type: "ANALYZE_DAY", date }, (res) => {
       setSummarizing(false);
-      if (chrome.runtime.lastError) {
-        setMsg(chrome.runtime.lastError.message);
-      } else if (res && res.ok) {
-        reload();
-      } else {
-        setMsg(res?.error || "Something went wrong.");
-      }
+      if (chrome.runtime.lastError) setMsg(chrome.runtime.lastError.message);
+      else if (res && res.ok) reload();
+      else setMsg(res?.error || "Something went wrong.");
     });
   };
 
@@ -76,7 +103,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen max-w-5xl mx-auto px-6 py-10">
-      <header className="flex flex-wrap items-center justify-between gap-4 mb-8">
+      <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-slate-100">Daily Mirror</h1>
           <p className="text-slate-500 text-sm">A private, on-device look at your day.</p>
@@ -96,8 +123,17 @@ export default function App() {
           >
             {summarizing ? "Writing…" : analysis ? "Re-summarize" : "✨ Summarize"}
           </button>
+          <button
+            onClick={() => setSettingsOpen(true)}
+            title="Settings"
+            className="text-slate-400 hover:text-slate-200 border border-slate-700 rounded-lg px-3 py-2"
+          >
+            ⚙
+          </button>
         </div>
       </header>
+
+      {isToday && <LiveStatus totalSeconds={data?.totalSeconds} />}
 
       {days.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-8">
@@ -118,9 +154,7 @@ export default function App() {
       )}
 
       {msg && (
-        <div className="mb-6 p-3 rounded-lg bg-red-950/60 border border-red-900/60 text-red-300 text-sm">
-          {msg}
-        </div>
+        <div className="mb-6 p-3 rounded-lg bg-red-950/60 border border-red-900/60 text-red-300 text-sm">{msg}</div>
       )}
 
       {loading ? (
@@ -136,17 +170,14 @@ export default function App() {
               summary={analysis.summary}
               observation={analysis.observation}
               goalAssessment={analysis.goalAssessment}
-              totalMinutes={data.totalMinutes}
+              totalSeconds={data.totalSeconds}
               topDomains={data.topDomains}
             />
           ) : (
             <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
               <p className="text-slate-300">
-                {data.totalMinutes >= 60
-                  ? `${Math.floor(data.totalMinutes / 60)}h ${data.totalMinutes % 60}m`
-                  : `${data.totalMinutes}m`}{" "}
-                of active time tracked. Click <span className="text-indigo-400 font-medium">Summarize</span> for
-                your AI narrative.
+                Tracked and categorized locally. Click{" "}
+                <span className="text-indigo-400 font-medium">Summarize</span> for your AI narrative.
               </p>
             </div>
           )}
@@ -154,13 +185,15 @@ export default function App() {
           <CategoryChart categories={data.categories} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <SessionsList sessions={data.sessions} />
+            <SessionsList sessions={data.sessions} categoryCache={cache} />
             {analysis ? <ThemeList themes={analysis.themes} /> : null}
           </div>
 
-          {analysis ? <Timeline timeline={analysis.timeline} /> : null}
+          <Timeline timeline={data.timeline} />
         </div>
       )}
+
+      <Settings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

@@ -4,12 +4,14 @@ import {
   Cell,
   ResponsiveContainer,
   Tooltip,
+  Legend,
   BarChart,
   Bar,
   XAxis,
   YAxis,
   CartesianGrid,
 } from "recharts";
+import { formatDuration } from "../../../db.js";
 
 const COLORS = [
   "#6366f1",
@@ -42,19 +44,24 @@ export function CategoryChart({ categories }) {
             <PieChart>
               <Pie
                 data={categories}
-                dataKey="minutes"
+                dataKey="seconds"
                 nameKey="name"
                 cx="50%"
                 cy="50%"
                 outerRadius={80}
-                label={({ name, percent }) => `${name || ""} (${Math.round((percent || 0) * 100)}%)`}
+                label={({ percent }) => `${Math.round((percent || 0) * 100)}%`}
                 labelLine={false}
               >
                 {categories.map((_, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value} min`, "Time"]} />
+              <Legend
+                verticalAlign="bottom"
+                height={36}
+                formatter={(value) => <span style={{ color: "#cbd5e1", fontSize: 12 }}>{value}</span>}
+              />
+              <Tooltip contentStyle={tooltipStyle} formatter={(value) => [formatDuration(value), "Time"]} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -62,10 +69,10 @@ export function CategoryChart({ categories }) {
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={categories} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-              <XAxis type="number" stroke="#94a3b8" fontSize={12} />
+              <XAxis type="number" stroke="#94a3b8" fontSize={12} tickFormatter={(v) => formatDuration(v)} />
               <YAxis type="category" dataKey="name" stroke="#94a3b8" fontSize={12} width={120} />
-              <Tooltip contentStyle={tooltipStyle} formatter={(value) => [`${value} min`, "Time"]} />
-              <Bar dataKey="minutes" radius={[0, 4, 4, 0]}>
+              <Tooltip contentStyle={tooltipStyle} formatter={(value) => [formatDuration(value), "Time"]} />
+              <Bar dataKey="seconds" radius={[0, 4, 4, 0]}>
                 {categories.map((_, index) => (
                   <Cell key={`bar-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}

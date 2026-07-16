@@ -1,10 +1,7 @@
-import { getSessionsForDay, aggregateByDomain, toDateStr } from "./db.js";
+import { getCurrentActivity, getSessionsForDay, aggregateByDomain, formatDuration, toDateStr } from "./db.js";
 
 const $ = (id) => document.getElementById(id);
-
-function todayStr() {
-  return toDateStr(Date.now());
-}
+const todayStr = () => toDateStr(Date.now());
 
 function showStatus(msg, type) {
   const el = $("status");
@@ -12,83 +9,90 @@ function showStatus(msg, type) {
   el.className = type;
 }
 
-// Build "Today so far: <b>1h 20m</b> of active time across <b>7</b> sites."
-// using DOM nodes (never innerHTML) so the emphasized numbers stay safe.
-function renderStats(el, parts) {
-  el.textContent = "";
-  for (const p of parts) {
-    if (typeof p === "string") {
-      el.appendChild(document.createTextNode(p));
+function openDashboard() {
+  chrome.tabs.create({ url: chrome.runtime.getURL("dashboard/dist/index.html") });
+}
+
+// Live capture indicator — refreshed once a second while the popup is open.
+async function renderLive() {
+  const dot = $("dot");
+  const text = $("liveText");
+  try {
+    const a = await getCurrentActivity(Date.now());
+    if (a.status === "capturing") {
+      dot.className = "dot capturing";
+      text.textContent = "";
+      text.appendChild(document.createTextNode("Capturing · "));
+      const site = document.createElement("span");
+      site.className = "mono";
+      site.textContent = a.domain;
+      text.appendChild(site);
+      text.appendChild(document.createTextNode(" · "));
+      const t = document.createElement("span");
+      t.className = "mono";
+      t.textContent = formatDuration(a.elapsedSeconds);
+      text.appendChild(t);
+    } else if (a.status === "paused") {
+      dot.className = "dot paused";
+      text.textContent = "Paused — no active page";
     } else {
-      const strong = document.createElement("strong");
-      strong.textContent = p.strong;
-      el.appendChild(strong);
+      dot.className = "dot";
+      text.textContent = "Ready — browse to start tracking";
     }
+  } catch {
+    dot.className = "dot";
+    text.textContent = "Ready";
   }
 }
 
-async function loadStats() {
+async function renderStats() {
   const el = $("stats");
   try {
     const sessions = await getSessionsForDay(todayStr(), Date.now());
     if (!sessions.length) {
-      el.textContent = "No activity tracked yet today — browse a little and check back.";
+      el.textContent = "No activity tracked yet today.";
       return;
     }
-    const minutes = Math.round(sessions.reduce((s, x) => s + x.seconds, 0) / 60);
+    const seconds = sessions.reduce((s, x) => s + x.seconds, 0);
     const domains = aggregateByDomain(sessions).length;
-    const h = Math.floor(minutes / 60);
-    const m = minutes % 60;
-    const timeStr = h > 0 ? `${h}h ${m}m` : `${m}m`;
-    renderStats(el, [
-      "Today so far: ",
-      { strong: timeStr },
-      " of active time across ",
-      { strong: String(domains) },
-      ` site${domains === 1 ? "" : "s"}.`,
-    ]);
-  } catch (e) {
+    el.textContent = "";
+    el.appendChild(document.createTextNode("Today so far: "));
+    const strongT = document.createElement("strong");
+    strongT.textContent = formatDuration(seconds);
+    el.appendChild(strongT);
+    el.appendChild(document.createTextNode(" across "));
+    const strongD = document.createElement("strong");
+    strongD.textContent = String(domains);
+    el.appendChild(strongD);
+    el.appendChild(document.createTextNode(` site${domains === 1 ? "" : "s"}.`));
+  } catch {
     el.textContent = "Could not read local activity.";
   }
 }
 
-function bindSetting(id, key) {
-  const el = $(id);
-  el.addEventListener("change", () => {
-    chrome.storage.local.set({ [key]: el.value });
-  });
+function tick() {
+  renderLive();
+  renderStats();
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-  // Clear the nudge badge when the user opens the popup.
+document.addEventListener("DOMContentLoaded", () => {
   chrome.runtime.sendMessage({ type: "CLEAR_BADGE" });
 
-  // Load saved settings.
-  const saved = await chrome.storage.local.get(["apiKey", "model", "goals"]);
-  if (saved.apiKey) $("apiKey").value = saved.apiKey;
-  if (saved.model) $("model").value = saved.model;
-  if (saved.goals) $("goals").value = saved.goals;
+  tick();
+  const interval = setInterval(tick, 1000);
+  window.addEventListener("unload", () => clearInterval(interval));
 
-  bindSetting("apiKey", "apiKey");
-  bindSetting("model", "model");
-  bindSetting("goals", "goals");
-
-  loadStats();
-
-  $("dashboardBtn").addEventListener("click", () => {
-    chrome.tabs.create({ url: chrome.runtime.getURL("dashboard/dist/index.html") });
+  $("dashboardBtn").addEventListener("click", openDashboard);
+  $("dashLink").addEventListener("click", (e) => {
+    e.preventDefault();
+    openDashboard();
   });
 
-  $("summarizeBtn").addEventListener("click", () => {
-    // Persist any unsaved field edits first.
-    chrome.storage.local.set({
-      apiKey: $("apiKey").value,
-      model: $("model").value,
-      goals: $("goals").value,
-    });
-
-    if (!$("apiKey").value.trim()) {
-      showStatus("Add your OpenRouter API key first.", "error");
+  $("summarizeBtn").addEventListener("click", async () => {
+    const { apiKey } = await chrome.storage.local.get("apiKey");
+    if (!apiKey) {
+      showStatus("Add your API key in the dashboard first — opening it now.", "error");
+      setTimeout(openDashboard, 900);
       return;
     }
 
@@ -101,7 +105,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         showStatus(`Error: ${chrome.runtime.lastError.message}`, "error");
       } else if (res && res.ok) {
         showStatus("Done! Opening your dashboard…", "success");
-        chrome.tabs.create({ url: chrome.runtime.getURL("dashboard/dist/index.html") });
+        openDashboard();
       } else {
         showStatus(`Error: ${res?.error || "unknown"}`, "error");
       }

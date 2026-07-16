@@ -128,6 +128,26 @@ export function toDateStr(ts) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+// Human duration with second precision: "8s", "5m 12s", "1h 4m".
+export function formatDuration(seconds) {
+  seconds = Math.max(0, Math.round(seconds));
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  if (m < 60) return s ? `${m}m ${s}s` : `${m}m`;
+  const h = Math.floor(m / 60);
+  const mm = m % 60;
+  return mm ? `${h}h ${mm}m` : `${h}h`;
+}
+
+// Clock-hour label for a timestamp: "9am", "12pm", "2pm".
+function formatHour(ts) {
+  const h = new Date(ts).getHours();
+  const ap = h < 12 ? "am" : "pm";
+  const hr = h % 12 === 0 ? 12 : h % 12;
+  return `${hr}${ap}`;
+}
+
 // --- Session derivation (pure) ---------------------------------------------
 
 function applyEvent(state, ev) {
@@ -205,6 +225,64 @@ export function computeSessions(events, dayStart, dayEnd, now) {
   return sessions;
 }
 
+// Reduce events into a per-clock-hour timeline derived from REAL timestamps
+// (never invented). Each returned entry is { hour: "2pm", activity } where
+// activity names the top domain(s) active that hour with their measured time,
+// so it can never be "Unknown". Same shape Timeline.jsx already renders.
+export function computeHourly(events, dayStart, dayEnd, now) {
+  const clipHi = Math.min(dayEnd, now ?? dayEnd);
+  const hours = new Map(); // hourStartTs -> Map(domain -> seconds)
+  const state = { url: null, domain: null, title: null, counting: false };
+  let lastTs = null;
+
+  const addChunk = (from, to) => {
+    let cur = from;
+    while (cur < to) {
+      const d = new Date(cur);
+      d.setMinutes(0, 0, 0);
+      const hs = d.getTime();
+      const chunkEnd = Math.min(to, hs + 3600000);
+      let m = hours.get(hs);
+      if (!m) {
+        m = new Map();
+        hours.set(hs, m);
+      }
+      m.set(state.domain, (m.get(state.domain) || 0) + (chunkEnd - cur) / 1000);
+      cur = chunkEnd;
+    }
+  };
+  const accrue = (untilTs) => {
+    if (lastTs === null || !state.counting || !state.domain) return;
+    if (untilTs - lastTs > MAX_GAP_MS) return;
+    const a = Math.max(lastTs, dayStart);
+    const b = Math.min(untilTs, clipHi);
+    if (b > a) addChunk(a, b);
+  };
+
+  for (const ev of events) {
+    accrue(ev.ts);
+    applyEvent(state, ev);
+    lastTs = ev.ts;
+  }
+  accrue(clipHi);
+
+  return [...hours.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([hs, m]) => {
+      const domains = [...m.entries()]
+        .map(([domain, seconds]) => ({ domain, seconds: Math.round(seconds) }))
+        .filter((d) => d.seconds > 0)
+        .sort((a, b) => b.seconds - a.seconds);
+      const total = domains.reduce((s, d) => s + d.seconds, 0);
+      const activity = domains
+        .slice(0, 2)
+        .map((d) => `${d.domain} (${formatDuration(d.seconds)})`)
+        .join(", ");
+      return { hour: formatHour(hs), activity, total, domains };
+    })
+    .filter((h) => h.total > 0);
+}
+
 // Convenience: load a day's events (incl. the preceding one) and reduce them.
 export async function getSessionsForDay(dateStr, now = Date.now()) {
   const { start, end } = dayBounds(dateStr);
@@ -214,6 +292,39 @@ export async function getSessionsForDay(dateStr, now = Date.now()) {
   ]);
   const events = preceding ? [preceding, ...dayEvents] : dayEvents;
   return computeSessions(events, start, end, now);
+}
+
+// Same, but for the hourly timeline.
+export async function getHourlyForDay(dateStr, now = Date.now()) {
+  const { start, end } = dayBounds(dateStr);
+  const [preceding, dayEvents] = await Promise.all([
+    getLastEventBefore(start),
+    getEventsInRange(start, Math.min(end, now + 1)),
+  ]);
+  const events = preceding ? [preceding, ...dayEvents] : dayEvents;
+  return computeHourly(events, start, end, now);
+}
+
+// What is being captured right now, from the durable log. The most recent event
+// fully determines state: url-setters imply "counting", pause events imply
+// stopped. Used by the live indicator in the popup and dashboard.
+export async function getCurrentActivity(now = Date.now()) {
+  const last = await getLastEventBefore(now + 1);
+  if (!last) return { status: "idle" };
+  if (["blur", "idle", "locked"].includes(last.type)) return { status: "paused" };
+  if (last.url) {
+    const elapsedSeconds = Math.round(Math.min(now - last.ts, MAX_GAP_MS) / 1000);
+    return {
+      status: "capturing",
+      domain: last.domain,
+      url: last.url,
+      title: last.title || "",
+      sinceTs: last.ts,
+      elapsedSeconds,
+    };
+  }
+  // active-type event on a non-web page (chrome://, blank): nothing to track.
+  return { status: "paused" };
 }
 
 // Aggregate sessions by domain for top-sites / category views.
@@ -229,8 +340,13 @@ export function aggregateByDomain(sessions) {
     d.visits += s.visits;
   }
   return [...byDomain.values()]
-    .map((d) => ({ domain: d.domain, minutes: Math.round(d.seconds / 60), visits: d.visits }))
-    .sort((a, b) => b.minutes - a.minutes);
+    .map((d) => ({
+      domain: d.domain,
+      seconds: d.seconds,
+      minutes: Math.round(d.seconds / 60),
+      visits: d.visits,
+    }))
+    .sort((a, b) => b.seconds - a.seconds);
 }
 
 // Build HistoryEntry[] (the shape the AI prompt expects) from measured sessions.

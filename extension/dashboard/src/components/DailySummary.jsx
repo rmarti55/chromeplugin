@@ -1,14 +1,11 @@
-export function DailySummary({ summary, observation, goalAssessment, totalMinutes, topDomains }) {
-  const hours = Math.floor(totalMinutes / 60);
-  const mins = totalMinutes % 60;
+import { formatDuration } from "../../../db.js";
 
+export function DailySummary({ summary, observation, goalAssessment, totalSeconds, topDomains }) {
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-slate-100">Summary</h2>
-        <span className="text-sm text-slate-400">
-          {hours > 0 ? `${hours}h ${mins}m` : `${mins}m`} total
-        </span>
+        <span className="text-sm text-slate-400">{formatDuration(totalSeconds || 0)} total</span>
       </div>
 
       {summary && <p className="text-slate-300 leading-relaxed mb-4">{summary}</p>}
@@ -36,7 +33,9 @@ export function DailySummary({ summary, observation, goalAssessment, totalMinute
                 <span className="text-slate-300 truncate mr-4">{d.domain}</span>
                 <div className="flex items-center gap-3 shrink-0">
                   <span className="text-slate-400">{d.visits} visits</span>
-                  <span className="text-indigo-400 font-medium w-16 text-right">{d.minutes} min</span>
+                  <span className="text-indigo-400 font-medium w-20 text-right tabular-nums">
+                    {formatDuration(d.seconds ?? (d.minutes || 0) * 60)}
+                  </span>
                 </div>
               </div>
             ))}
