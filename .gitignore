@@ -1,0 +1,26 @@
+# dependencies
+node_modules/
+web/node_modules/
+extension/dashboard/node_modules/
+
+# built dashboard (regenerate with: cd extension/dashboard && npm run build)
+extension/dashboard/dist/
+
+# env files
+.env
+.env.local
+.env*.local
+
+# next.js
+web/.next/
+web/out/
+
+# misc
+.DS_Store
+*.pem
+
+# vercel
+.vercel
+
+# parked legacy app (its own git repo; not part of this extension)
+/web/

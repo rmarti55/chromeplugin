@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      width: 340px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 18px;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+    h1 { font-size: 15px; font-weight: 600; margin-bottom: 4px; color: #f8fafc; }
+    .sub { font-size: 11px; color: #64748b; margin-bottom: 16px; }
+    .field { margin-bottom: 12px; }
+    label { display: block; font-size: 11px; color: #94a3b8; margin-bottom: 4px; font-weight: 500; }
+    input, textarea {
+      width: 100%; padding: 8px 10px; border: 1px solid #334155; border-radius: 6px;
+      font-size: 13px; background: #1e293b; color: #e2e8f0; outline: none;
+      font-family: inherit; resize: vertical;
+    }
+    input:focus, textarea:focus { border-color: #6366f1; }
+    .hint { font-size: 10px; color: #475569; margin-top: 3px; }
+    .hint a { color: #818cf8; }
+    button {
+      width: 100%; padding: 10px; border: none; border-radius: 6px; font-size: 13px;
+      font-weight: 600; cursor: pointer; margin-top: 6px; transition: background 0.15s;
+    }
+    #summarizeBtn { background: #6366f1; color: white; }
+    #summarizeBtn:hover { background: #4f46e5; }
+    #summarizeBtn:disabled { background: #4b5563; cursor: not-allowed; }
+    #dashboardBtn { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; }
+    #dashboardBtn:hover { background: #334155; }
+    #status {
+      margin-top: 12px; font-size: 12px; padding: 8px; border-radius: 6px; display: none;
+    }
+    #status.success { display: block; background: #064e3b; color: #6ee7b7; }
+    #status.error { display: block; background: #450a0a; color: #fca5a5; }
+    #status.loading { display: block; background: #1e1b4b; color: #a5b4fc; }
+    #stats {
+      margin-top: 14px; padding: 10px; background: #1e293b; border-radius: 6px;
+      font-size: 12px; color: #94a3b8; line-height: 1.5;
+    }
+    #stats strong { color: #e2e8f0; }
+    hr { border: none; border-top: 1px solid #1e293b; margin: 14px 0; }
+  </style>
+</head>
+<body>
+  <h1>Daily Mirror</h1>
+  <div class="sub">A private, on-device look at your day.</div>
+
+  <div id="stats">Loading today…</div>
+
+  <button id="summarizeBtn">✨ Summarize today</button>
+  <button id="dashboardBtn">Open dashboard</button>
+
+  <div id="status"></div>
+
+  <hr>
+
+  <div class="field">
+    <label>This week I'm trying to…</label>
+    <textarea id="goals" rows="3" placeholder="e.g. ship the Solyra landing page; avoid Twitter before noon"></textarea>
+  </div>
+
+  <div class="field">
+    <label>OpenRouter API key</label>
+    <input type="password" id="apiKey" placeholder="sk-or-…" autocomplete="off">
+    <div class="hint">Stored only on this device. Get one at <a href="https://openrouter.ai/keys" target="_blank">openrouter.ai/keys</a>.</div>
+  </div>
+
+  <div class="field">
+    <label>Model (optional)</label>
+    <input type="text" id="model" placeholder="anthropic/claude-sonnet-4-20250514" autocomplete="off">
+  </div>
+
+  <div class="hint" style="margin-top:10px;">
+    Everything stays on this device. <a href="privacy.html" target="_blank">Privacy</a>
+  </div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

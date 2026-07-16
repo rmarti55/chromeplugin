@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Chrome Activity Analyzer",
+  "version": "0.1.0",
+  "description": "A private, on-device mirror of your day: measures real time-on-site and writes you a daily AI narrative measured against your goals.",
+  "permissions": ["history", "tabs", "storage", "idle", "alarms"],
+  "host_permissions": ["https://openrouter.ai/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Chrome Activity Analyzer"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
