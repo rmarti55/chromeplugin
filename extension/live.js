@@ -4,6 +4,7 @@
 // popup does not falsely show "paused". Time accounting still uses the log.
 
 import { getCurrentActivity } from "./db.js";
+import { IDLE_SECONDS } from "./constants.js";
 
 function host(u) {
   try {
@@ -34,7 +35,7 @@ export async function getLiveStatus(now = Date.now()) {
 
   let idleState = "active";
   try {
-    idleState = await chrome.idle.queryState(60);
+    idleState = await chrome.idle.queryState(IDLE_SECONDS);
   } catch {
     /* keep default */
   }

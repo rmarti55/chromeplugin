@@ -295,6 +295,108 @@ export function computeSessions(events, dayStart, dayEnd, now) {
   return sessions;
 }
 
+// Per-URL Chrome-open time (idle reading counts; blur/lock stops).
+export function computeOpenSessions(events, dayStart, dayEnd, now) {
+  const clipHi = Math.min(dayEnd, now ?? dayEnd);
+  const byUrl = new Map();
+
+  const touch = (url, domain, title) => {
+    let s = byUrl.get(url);
+    if (!s) {
+      s = { url, domain, title, seconds: 0 };
+      byUrl.set(url, s);
+    }
+    if (title) s.title = title;
+    return s;
+  };
+
+  const state = { url: null, domain: null, title: null, counting: false };
+  let lastTs = null;
+
+  const accrue = (untilTs) => {
+    if (lastTs === null || !state.counting || !state.url) return;
+    if (untilTs - lastTs > MAX_GAP_MS) return;
+    const a = Math.max(lastTs, dayStart);
+    const b = Math.min(untilTs, clipHi);
+    const durMs = b - a;
+    if (durMs > 0) touch(state.url, state.domain, state.title).seconds += durMs / 1000;
+  };
+
+  const applyOpenTab = (state, ev) => {
+    switch (ev.type) {
+      case "activate":
+      case "urlchange":
+      case "focus":
+      case "active":
+        if (ev.url) {
+          state.url = ev.url;
+          state.domain = ev.domain;
+          state.title = ev.title;
+        } else {
+          state.url = null;
+          state.domain = null;
+          state.title = null;
+        }
+        state.counting = true;
+        break;
+      case "blur":
+      case "locked":
+        state.counting = false;
+        break;
+      case "idle":
+        break;
+    }
+  };
+
+  for (const ev of events) {
+    accrue(ev.ts);
+    applyOpenTab(state, ev);
+    lastTs = ev.ts;
+  }
+  accrue(clipHi);
+
+  return [...byUrl.values()]
+    .map((s) => ({ ...s, seconds: Math.round(s.seconds) }))
+    .filter((s) => s.seconds > 0)
+    .sort((a, b) => b.seconds - a.seconds);
+}
+
+export function aggregateOpenByDomain(openSessions) {
+  const byDomain = new Map();
+  for (const s of openSessions) {
+    let d = byDomain.get(s.domain);
+    if (!d) {
+      d = { domain: s.domain, seconds: 0 };
+      byDomain.set(s.domain, d);
+    }
+    d.seconds += s.seconds;
+  }
+  return [...byDomain.values()]
+    .map((d) => ({ domain: d.domain, seconds: d.seconds }))
+    .sort((a, b) => b.seconds - a.seconds);
+}
+
+export function mergeSessionsWithOpen(activeSessions, openSessions) {
+  const openByUrl = new Map(openSessions.map((s) => [s.url, s.seconds]));
+  const merged = activeSessions.map((s) => ({
+    ...s,
+    openSeconds: openByUrl.get(s.url) || 0,
+  }));
+  for (const o of openSessions) {
+    if (!merged.some((s) => s.url === o.url)) {
+      merged.push({
+        url: o.url,
+        domain: o.domain,
+        title: o.title,
+        seconds: 0,
+        visits: 0,
+        openSeconds: o.seconds,
+      });
+    }
+  }
+  return merged.sort((a, b) => b.seconds - a.seconds || b.openSeconds - a.openSeconds);
+}
+
 // Reduce events into a per-clock-hour timeline derived from REAL timestamps
 // (never invented). Each returned entry is { hour: "2pm", activity } where
 // activity names the top domain(s) active that hour with their measured time,
@@ -417,8 +519,11 @@ export async function getDayMetrics(dateStr, now = Date.now()) {
   const { start, end } = dayBounds(dateStr);
   const events = await getEventsForDay(dateStr, now);
   const sessions = computeSessions(events, start, end, now);
+  const openSessions = computeOpenSessions(events, start, end, now);
+  const sessionsWithOpen = mergeSessionsWithOpen(sessions, openSessions);
   const activeSeconds = sessions.reduce((s, x) => s + x.seconds, 0);
   const openSeconds = computePresenceSeconds(events, start, end, now);
+  const openByDomain = aggregateOpenByDomain(openSessions);
   const domainHints = domainHintsToObject(computeDomainHints(events));
   const topDomains = aggregateByDomain(sessions, domainHints);
   const presenceByHour = computeHourlyPresence(events, start, end, now);
@@ -429,8 +534,9 @@ export async function getDayMetrics(dateStr, now = Date.now()) {
   return {
     activeSeconds,
     openSeconds,
-    sessions,
+    sessions: sessionsWithOpen,
     topDomains,
+    openByDomain,
     timeline,
     domainHints,
   };

@@ -8,7 +8,9 @@ export function SessionsList({ sessions, categoryCache, domainHints = {} }) {
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
       <h2 className="text-lg font-semibold text-slate-100 mb-1">Where your time went</h2>
-      <p className="text-xs text-slate-500 mb-4">Active use per page (idle pauses the clock).</p>
+      <p className="text-xs text-slate-500 mb-4">
+        Active use per page (pauses after ~5 min without input). Chrome open shown when higher.
+      </p>
       <div className="space-y-2">
         {sessions.slice(0, 25).map((s) => {
           const hint = domainHints[s.domain];
@@ -16,6 +18,7 @@ export function SessionsList({ sessions, categoryCache, domainHints = {} }) {
             hint?.automationHint && hint.automationHint !== "none"
               ? HINT_LABELS[hint.automationHint]
               : null;
+          const showOpen = (s.openSeconds || 0) > (s.seconds || 0);
           return (
             <div key={s.url} className="flex items-center justify-between text-sm gap-4">
               <div className="min-w-0">
@@ -34,9 +37,16 @@ export function SessionsList({ sessions, categoryCache, domainHints = {} }) {
                   {s.domain} · {categorize(s.domain, categoryCache)}
                 </div>
               </div>
-              <span className="text-indigo-400 font-medium shrink-0 w-20 text-right tabular-nums">
-                {formatDuration(s.seconds)}
-              </span>
+              <div className="shrink-0 text-right">
+                <span className="text-indigo-400 font-medium tabular-nums block">
+                  {formatDuration(s.seconds || 0)}
+                </span>
+                {showOpen && (
+                  <span className="text-sky-400/70 text-xs tabular-nums">
+                    open {formatDuration(s.openSeconds)}
+                  </span>
+                )}
+              </div>
             </div>
           );
         })}

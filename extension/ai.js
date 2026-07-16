@@ -12,13 +12,13 @@ import {
   getLastEventTsInDay,
 } from "./db.js";
 import { getHistoryForDay } from "./history.js";
+import { resolveModelSlug, estimateCostUsd } from "./models.js";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "anthropic/claude-sonnet-4.5";
 
 function getSettings() {
   return new Promise((resolve) => {
-    chrome.storage.local.get(["apiKey", "model", "goals"], (d) => resolve(d));
+    chrome.storage.local.get(["apiKey", "model", "modelPreset", "goals"], (d) => resolve(d));
   });
 }
 
@@ -78,7 +78,7 @@ Respond with ONLY valid JSON in this exact format:
 
 Rules:
 - Lead with active-use minutes, themes, and what the person did — never navigation or visit counts from Mirror.
-- If Chrome History reference is provided, treat it as visit-count context only — never use it as time-on-site.
+- If Chrome History reference is provided, treat visit counts and gap-estimated dwell as context only — compare trends to Mirror active use and Chrome open, never replace Mirror minutes.
 - Category and theme minutes must reflect ACTIVE USE only and sum to ${activeMinutes}.
 - If Chrome open >> active use, include one sentence explaining the gap (reading, other apps, automation patterns).
 - If a domain has a "Pattern:" note, mention possible testing, automation, or rapid lookups — never claim Claude, Codex, or Cursor initiated activity unless the person simply visited that product's website.
@@ -138,7 +138,9 @@ function normalize(parsed) {
 }
 
 export async function analyzeDay(dateStr) {
-  const { apiKey, model, goals } = await getSettings();
+  const settings = await getSettings();
+  const { apiKey, goals } = settings;
+  const modelSlug = resolveModelSlug(settings);
   if (!apiKey) {
     throw new Error("No API key set. Add your OpenRouter key in the extension popup.");
   }
@@ -160,7 +162,7 @@ export async function analyzeDay(dateStr) {
   const goalText = (goals || "").trim();
   const historyNote =
     history.available && history.historyVisitCount > 0
-      ? `\nFor reference only (NOT time-on-site): Chrome History recorded ${history.historyVisitCount} visits across ${history.historyDomainCount} sites today.`
+      ? `\nFor reference only (NOT Mirror time): Chrome History recorded ${history.historyVisitCount} visits (est. dwell from gaps ≈ ${Math.round((history.estimatedDwellSeconds || 0) / 60)} min) across ${history.historyDomainCount} sites today. Do not treat History dwell as measured time-on-site.`
       : "";
   const prompt = buildPrompt(
     dateStr,
@@ -180,7 +182,7 @@ export async function analyzeDay(dateStr) {
       "X-Title": "Chrome Activity Analyzer",
     },
     body: JSON.stringify({
-      model: model || DEFAULT_MODEL,
+      model: modelSlug,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.4,
     }),
@@ -211,6 +213,9 @@ export async function analyzeDay(dateStr) {
     totalMinutes: activeMinutes,
     analyzedAt: new Date().toISOString(),
     activityFingerprint: { activeSeconds, openSeconds, lastEventTs },
+    model: modelSlug,
+    usage: data.usage || null,
+    estimatedCostUsd: estimateCostUsd(data.usage, modelSlug),
   };
 
   await saveAnalysis(analysis);

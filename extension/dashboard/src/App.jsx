@@ -190,6 +190,7 @@ export default function App() {
               activeSeconds={data.activeSeconds}
               topDomains={data.topDomains}
               analyzedAt={analysis.analyzedAt}
+              estimatedCostUsd={analysis.estimatedCostUsd}
             />
           ) : (
             <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">

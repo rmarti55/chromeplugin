@@ -21,7 +21,8 @@ Everything is the Chrome extension in `extension/`:
 | `background.js` | Service worker. Logs durable, timestamped events (tab/window/idle changes) to IndexedDB. Dwell time is derived at read time, so killing the worker loses nothing. Runs alarms for the passive nudge and hourly auto-summary (activity-gated). |
 | `db.js` | IndexedDB wrapper + the pure session-derivation logic (events → per-URL sessions). Shared by the service worker and the dashboard. |
 | `categorize.js` | Cheap local domain→category buckets (no AI/network). |
-| `ai.js` | The daily narrative: BYO-key OpenRouter call, goal-aware prompt, JSON parse + save. |
+| `models.js` | OpenRouter model presets (Budget / Balanced / Premium) and cost helpers. |
+| `ai.js` | The daily narrative: BYO-key OpenRouter call, goal-aware prompt, JSON parse + save. Default model: Gemini 2.5 Flash Lite. |
 | `popup.html` / `popup.js` | Settings (API key, model, weekly goals) + "Summarize today" / "Open dashboard". |
 | `dashboard/` | Vite + React + Recharts dashboard, opened as a full-page tab. Reads IndexedDB directly and renders the narrative, category charts, per-site time, themes, and timeline. |
 
@@ -52,12 +53,32 @@ your weekly goals, browse for a bit, and hit **Summarize today**.
 2. The dashboard reduces those events into per-URL sessions with measured seconds, then buckets
    them locally into categories — no AI needed for the basic view.
 3. On demand (or automatically about once an hour when you've been active), the day's
-   sessions are bundled and sent to Claude via OpenRouter with your goals woven in. Auto-summary
-   skips API calls when nothing new happened since the last run; manual **Summarize** always
-   works. You get a narrative, one honest observation, and a goal-vs-actual line.
+   sessions are bundled and sent to your chosen model via OpenRouter with your goals woven in.
+   Auto-summary skips API calls when nothing new happened since the last run; manual
+   **Summarize** always works. You get a narrative, one honest observation, and a goal-vs-actual line.
 
 Days are anchored to your local calendar (midnight to midnight). Week/month views can build on
 this day model later.
+
+## Model tiers (OpenRouter)
+
+Pick a preset in dashboard **Settings**. All use your own OpenRouter credits — avoid `:free` promo
+models (rate-limited and can disappear).
+
+| Preset | Model | Typical cost per summary | Notes |
+|--------|-------|--------------------------|-------|
+| **Balanced** (default) | `google/gemini-2.5-flash-lite` | ~$0.001 | Recommended for hourly auto-summary |
+| **Budget** | `qwen/qwen3.5-flash-02-23` | ~$0.0005–0.002 | Cheapest list price; can be verbose on output |
+| **Premium** | `anthropic/claude-sonnet-4.5` | ~$0.03 | Best narrative; use for manual re-summarize |
+
+Rough daily cost at **hourly auto-summary** with Balanced: **under ~$0.05/day**. Premium Sonnet
+at the same cadence is **~$0.50–1.00/day**.
+
+Re-run benchmarks after major prompt changes:
+
+```bash
+OPENROUTER_API_KEY=sk-or-... node scripts/benchmark-models.mjs
+```
 
 ## Chrome Web Store permission justifications
 

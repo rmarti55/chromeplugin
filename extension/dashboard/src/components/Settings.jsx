@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
+import { DEFAULT_PRESET, MODEL_PRESETS } from "../../../models.js";
 
 const hasChrome = typeof chrome !== "undefined" && chrome.storage;
 
-// Settings panel: API key, model, and weekly goals live here (behind a gear),
-// not in the popup. Persists to chrome.storage.local, the same store the
-// service worker reads when generating the summary.
+const PRESET_OPTIONS = [
+  { value: "balanced", ...MODEL_PRESETS.balanced },
+  { value: "budget", ...MODEL_PRESETS.budget },
+  { value: "premium", ...MODEL_PRESETS.premium },
+  { value: "custom", label: "Custom", description: "Enter an OpenRouter model slug", costHint: "Varies" },
+];
+
 export function Settings({ open, onClose }) {
   const [apiKey, setApiKey] = useState("");
+  const [modelPreset, setModelPreset] = useState(DEFAULT_PRESET);
   const [model, setModel] = useState("");
   const [goals, setGoals] = useState("");
   const [autoSummaryHourly, setAutoSummaryHourly] = useState(true);
@@ -14,18 +20,32 @@ export function Settings({ open, onClose }) {
 
   useEffect(() => {
     if (!hasChrome) return;
-    chrome.storage.local.get(["apiKey", "model", "goals", "autoSummaryHourly"], (d) => {
+    chrome.storage.local.get(["apiKey", "model", "modelPreset", "goals", "autoSummaryHourly"], (d) => {
       setApiKey(d.apiKey || "");
-      setModel(d.model || "");
       setGoals(d.goals || "");
-      // Default on when a key is set; explicit false disables.
       setAutoSummaryHourly(d.autoSummaryHourly !== false);
+      if (d.modelPreset) {
+        setModelPreset(d.modelPreset);
+      } else if (d.model) {
+        setModelPreset("custom");
+      } else {
+        setModelPreset(DEFAULT_PRESET);
+      }
+      setModel(d.model || "");
     });
   }, [open]);
 
+  const selectedPreset = PRESET_OPTIONS.find((p) => p.value === modelPreset) || PRESET_OPTIONS[0];
+
   const save = () => {
     if (hasChrome) {
-      chrome.storage.local.set({ apiKey, model, goals, autoSummaryHourly });
+      chrome.storage.local.set({
+        apiKey,
+        modelPreset,
+        model: modelPreset === "custom" ? model.trim() : "",
+        goals,
+        autoSummaryHourly,
+      });
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
@@ -36,7 +56,7 @@ export function Settings({ open, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-start justify-center z-50 p-6" onClick={onClose}>
       <div
-        className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-md mt-16"
+        className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-md mt-16 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">
@@ -70,15 +90,35 @@ export function Settings({ open, onClose }) {
           .
         </p>
 
-        <label className="block text-xs text-slate-400 mb-1">Model (optional)</label>
-        <input
-          type="text"
-          value={model}
-          onChange={(e) => setModel(e.target.value)}
-          placeholder="anthropic/claude-sonnet-4.5"
-          autoComplete="off"
-          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 mb-5"
-        />
+        <label className="block text-xs text-slate-400 mb-1">Summary model</label>
+        <select
+          value={modelPreset}
+          onChange={(e) => setModelPreset(e.target.value)}
+          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 mb-1"
+        >
+          {PRESET_OPTIONS.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
+              {p.slug ? ` — ${p.slug.split("/").pop()}` : ""}
+            </option>
+          ))}
+        </select>
+        <p className="text-[11px] text-slate-500 mb-1">{selectedPreset.description}</p>
+        <p className="text-[11px] text-slate-500 mb-4">Typical cost: {selectedPreset.costHint}</p>
+
+        {modelPreset === "custom" && (
+          <>
+            <label className="block text-xs text-slate-400 mb-1">Custom model slug</label>
+            <input
+              type="text"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder="google/gemini-2.5-flash-lite"
+              autoComplete="off"
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 mb-4"
+            />
+          </>
+        )}
 
         <label className="flex items-start gap-3 mb-5 cursor-pointer">
           <input

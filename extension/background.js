@@ -15,16 +15,9 @@ import {
   fingerprintsMatch,
 } from "./db.js";
 import { analyzeDay } from "./ai.js";
+import { IDLE_SECONDS } from "./constants.js";
 
 const MIN_ACTIVITY_SECONDS = 120; // 2 min before auto-summary runs
-
-// Fire "idle" after this many seconds of no keyboard/mouse input. Tradeoff:
-// chrome.idle cannot see media playback, so passively watching a long video or
-// reading a long article with no input will be counted as idle and undercounted.
-// A larger value counts more passive media but also more genuine away-from-desk
-// time. 60s is a conservative default; revisit once dogfooding shows which way
-// the error hurts more. (chrome.idle minimum is 15s.)
-const IDLE_SECONDS = 60;
 const RETENTION_DAYS = 120;
 
 // Set at top level so idle detection is armed every time the worker wakes,

@@ -14,6 +14,7 @@ export function DailySummary({
   activeSeconds,
   topDomains,
   analyzedAt,
+  estimatedCostUsd,
 }) {
   const lastSummarized = formatAnalyzedAt(analyzedAt);
   const showGap = openSeconds > 0 && activeSeconds > 0 && openSeconds > activeSeconds * 1.25;
@@ -30,7 +31,12 @@ export function DailySummary({
             Active use: {formatDuration(activeSeconds || 0)}
           </span>
           {lastSummarized && (
-            <span className="text-xs text-slate-500">Last summarized · {lastSummarized}</span>
+            <span className="text-xs text-slate-500 block">Last summarized · {lastSummarized}</span>
+          )}
+          {estimatedCostUsd != null && estimatedCostUsd > 0 && (
+            <span className="text-xs text-slate-600">
+              Est. API cost · ${estimatedCostUsd < 0.01 ? estimatedCostUsd.toFixed(4) : estimatedCostUsd.toFixed(3)}
+            </span>
           )}
         </div>
       </div>
