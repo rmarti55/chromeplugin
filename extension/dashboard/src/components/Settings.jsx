@@ -1,51 +1,26 @@
 import { useEffect, useState } from "react";
-import { DEFAULT_PRESET, MODEL_PRESETS } from "../../../models.js";
+import { DEFAULT_MODEL, MODEL_LABEL } from "../../../models.js";
 
 const hasChrome = typeof chrome !== "undefined" && chrome.storage;
 
-const PRESET_OPTIONS = [
-  { value: "balanced", ...MODEL_PRESETS.balanced },
-  { value: "budget", ...MODEL_PRESETS.budget },
-  { value: "premium", ...MODEL_PRESETS.premium },
-  { value: "custom", label: "Custom", description: "Enter an OpenRouter model slug", costHint: "Varies" },
-];
-
 export function Settings({ open, onClose }) {
   const [apiKey, setApiKey] = useState("");
-  const [modelPreset, setModelPreset] = useState(DEFAULT_PRESET);
-  const [model, setModel] = useState("");
   const [goals, setGoals] = useState("");
   const [autoSummaryHourly, setAutoSummaryHourly] = useState(true);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (!hasChrome) return;
-    chrome.storage.local.get(["apiKey", "model", "modelPreset", "goals", "autoSummaryHourly"], (d) => {
+    chrome.storage.local.get(["apiKey", "goals", "autoSummaryHourly"], (d) => {
       setApiKey(d.apiKey || "");
       setGoals(d.goals || "");
       setAutoSummaryHourly(d.autoSummaryHourly !== false);
-      if (d.modelPreset) {
-        setModelPreset(d.modelPreset);
-      } else if (d.model) {
-        setModelPreset("custom");
-      } else {
-        setModelPreset(DEFAULT_PRESET);
-      }
-      setModel(d.model || "");
     });
   }, [open]);
 
-  const selectedPreset = PRESET_OPTIONS.find((p) => p.value === modelPreset) || PRESET_OPTIONS[0];
-
   const save = () => {
     if (hasChrome) {
-      chrome.storage.local.set({
-        apiKey,
-        modelPreset,
-        model: modelPreset === "custom" ? model.trim() : "",
-        goals,
-        autoSummaryHourly,
-      });
+      chrome.storage.local.set({ apiKey, goals, autoSummaryHourly });
     }
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
@@ -90,35 +65,9 @@ export function Settings({ open, onClose }) {
           .
         </p>
 
-        <label className="block text-xs text-slate-400 mb-1">Summary model</label>
-        <select
-          value={modelPreset}
-          onChange={(e) => setModelPreset(e.target.value)}
-          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 mb-1"
-        >
-          {PRESET_OPTIONS.map((p) => (
-            <option key={p.value} value={p.value}>
-              {p.label}
-              {p.slug ? ` — ${p.slug.split("/").pop()}` : ""}
-            </option>
-          ))}
-        </select>
-        <p className="text-[11px] text-slate-500 mb-1">{selectedPreset.description}</p>
-        <p className="text-[11px] text-slate-500 mb-4">Typical cost: {selectedPreset.costHint}</p>
-
-        {modelPreset === "custom" && (
-          <>
-            <label className="block text-xs text-slate-400 mb-1">Custom model slug</label>
-            <input
-              type="text"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="google/gemini-2.5-flash-lite"
-              autoComplete="off"
-              className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 mb-4"
-            />
-          </>
-        )}
+        <p className="text-xs text-slate-400 mb-1">Summary model</p>
+        <p className="text-sm text-slate-200 mb-1">{MODEL_LABEL}</p>
+        <p className="text-[11px] text-slate-500 mb-4 font-mono">{DEFAULT_MODEL} · ~$0.001 per summary</p>
 
         <label className="flex items-start gap-3 mb-5 cursor-pointer">
           <input

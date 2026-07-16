@@ -12,13 +12,13 @@ import {
   getLastEventTsInDay,
 } from "./db.js";
 import { getHistoryForDay } from "./history.js";
-import { resolveModelSlug, estimateCostUsd } from "./models.js";
+import { DEFAULT_MODEL, estimateCostUsd } from "./models.js";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 function getSettings() {
   return new Promise((resolve) => {
-    chrome.storage.local.get(["apiKey", "model", "modelPreset", "goals"], (d) => resolve(d));
+    chrome.storage.local.get(["apiKey", "goals"], (d) => resolve(d));
   });
 }
 
@@ -138,9 +138,7 @@ function normalize(parsed) {
 }
 
 export async function analyzeDay(dateStr) {
-  const settings = await getSettings();
-  const { apiKey, goals } = settings;
-  const modelSlug = resolveModelSlug(settings);
+  const { apiKey, goals } = await getSettings();
   if (!apiKey) {
     throw new Error("No API key set. Add your OpenRouter key in the extension popup.");
   }
@@ -182,7 +180,7 @@ export async function analyzeDay(dateStr) {
       "X-Title": "Chrome Activity Analyzer",
     },
     body: JSON.stringify({
-      model: modelSlug,
+      model: DEFAULT_MODEL,
       messages: [{ role: "user", content: prompt }],
       temperature: 0.4,
     }),
@@ -213,9 +211,9 @@ export async function analyzeDay(dateStr) {
     totalMinutes: activeMinutes,
     analyzedAt: new Date().toISOString(),
     activityFingerprint: { activeSeconds, openSeconds, lastEventTs },
-    model: modelSlug,
+    model: DEFAULT_MODEL,
     usage: data.usage || null,
-    estimatedCostUsd: estimateCostUsd(data.usage, modelSlug),
+    estimatedCostUsd: estimateCostUsd(data.usage),
   };
 
   await saveAnalysis(analysis);

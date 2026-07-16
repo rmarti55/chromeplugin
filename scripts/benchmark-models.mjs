@@ -6,11 +6,7 @@
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-const MODELS = [
-  "anthropic/claude-sonnet-4.5",
-  "google/gemini-2.5-flash-lite",
-  "qwen/qwen3.5-flash-02-23",
-];
+const MODELS = ["google/gemini-2.5-flash-lite"];
 
 // Representative 2026-07-16 activity (from dogfooding session).
 const SAMPLE = {
