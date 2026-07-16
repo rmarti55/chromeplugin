@@ -11,6 +11,7 @@ import {
   saveAnalysis,
   getLastEventTsInDay,
 } from "./db.js";
+import { getHistoryForDay } from "./history.js";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "anthropic/claude-sonnet-4.5";
@@ -43,7 +44,7 @@ function buildDomainSummary(entries, domainHints = {}) {
     .join("\n");
 }
 
-function buildPrompt(date, domainSummary, openMinutes, activeMinutes, goalText) {
+function buildPrompt(date, domainSummary, openMinutes, activeMinutes, goalText, historyNote = "") {
   const goalBlock = goalText
     ? `\nThe person wrote down what they were trying to do:\n"${goalText}"\n`
     : "";
@@ -63,7 +64,7 @@ ${domainSummary}
 
 Chrome open: ${openMinutes} minutes (Chrome was the focused app)
 Active use: ${activeMinutes} minutes (Chrome focused + recent mouse/keyboard input)
-${gapNote}
+${gapNote}${historyNote}
 ${goalBlock}
 Respond with ONLY valid JSON in this exact format:
 {
@@ -76,7 +77,8 @@ Respond with ONLY valid JSON in this exact format:
 }
 
 Rules:
-- Lead with active-use minutes, themes, and what the person did — never navigation or visit counts (they are not provided).
+- Lead with active-use minutes, themes, and what the person did — never navigation or visit counts from Mirror.
+- If Chrome History reference is provided, treat it as visit-count context only — never use it as time-on-site.
 - Category and theme minutes must reflect ACTIVE USE only and sum to ${activeMinutes}.
 - If Chrome open >> active use, include one sentence explaining the gap (reading, other apps, automation patterns).
 - If a domain has a "Pattern:" note, mention possible testing, automation, or rapid lookups — never claim Claude, Codex, or Cursor initiated activity unless the person simply visited that product's website.
@@ -142,7 +144,11 @@ export async function analyzeDay(dateStr) {
   }
 
   const now = Date.now();
-  const { sessions, domainHints, activeSeconds, openSeconds } = await getDayMetrics(dateStr, now);
+  const [metrics, history] = await Promise.all([
+    getDayMetrics(dateStr, now),
+    getHistoryForDay(dateStr, now).catch(() => ({ available: false })),
+  ]);
+  const { sessions, domainHints, activeSeconds, openSeconds } = metrics;
   if (!sessions.length && openSeconds === 0) {
     throw new Error("No tracked activity for this day yet.");
   }
@@ -152,12 +158,17 @@ export async function analyzeDay(dateStr) {
   const openMinutes = Math.round(openSeconds / 60);
   const lastEventTs = await getLastEventTsInDay(dateStr, now);
   const goalText = (goals || "").trim();
+  const historyNote =
+    history.available && history.historyVisitCount > 0
+      ? `\nFor reference only (NOT time-on-site): Chrome History recorded ${history.historyVisitCount} visits across ${history.historyDomainCount} sites today.`
+      : "";
   const prompt = buildPrompt(
     dateStr,
     buildDomainSummary(entries, domainHints),
     openMinutes,
     activeMinutes,
-    goalText
+    goalText,
+    historyNote
   );
 
   const response = await fetch(OPENROUTER_API_URL, {

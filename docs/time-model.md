@@ -17,7 +17,12 @@ Daily Mirror tracks two clocks from the same Chrome event log.
 
 - Time in other apps (Cursor, Slack, Terminal)
 - Background Chrome tabs while another app is in front
-- Chrome History visit counts (we derive from tab/focus events, not `chrome.history`)
+
+## Chrome History (reference)
+
+| **Chrome History** | Every page load Chrome recorded | Reference only — visits, not focus time |
+
+Daily Mirror reads `chrome.history` for a **side-by-side alignment** table (History visits vs Mirror active use and navigations). Time clocks still come from the event log only. History visit counts are usually higher than Mirror navigations because History includes background loads and every recorded visit.
 
 ## Likely-automated activity
 

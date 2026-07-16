@@ -6,12 +6,14 @@ import {
   listAnalysisDays,
   toDateStr,
 } from "../../db.js";
+import { getHistoryForDay, compareDayToHistory } from "../../history.js";
 import { categorizeSessions } from "../../categorize.js";
 import { DailySummary } from "./components/DailySummary.jsx";
 import { CategoryChart } from "./components/CategoryChart.jsx";
 import { ThemeList } from "./components/ThemeList.jsx";
 import { Timeline } from "./components/Timeline.jsx";
 import { SessionsList } from "./components/SessionsList.jsx";
+import { HistoryReference } from "./components/HistoryReference.jsx";
 import { LiveStatus } from "./components/LiveStatus.jsx";
 import { Settings } from "./components/Settings.jsx";
 
@@ -37,8 +39,18 @@ function useDayData(date, cache) {
 
   const load = useCallback(async () => {
     const now = Date.now();
-    const [metrics, analysis] = await Promise.all([getDayMetrics(date, now), getAnalysis(date)]);
+    const [metrics, analysis, history] = await Promise.all([
+      getDayMetrics(date, now),
+      getAnalysis(date),
+      getHistoryForDay(date, now).catch(() => ({
+        domains: [],
+        historyVisitCount: 0,
+        historyDomainCount: 0,
+        available: false,
+      })),
+    ]);
     const { sessions, topDomains, timeline, domainHints, activeSeconds, openSeconds } = metrics;
+    const historyAlignment = compareDayToHistory(metrics, history);
     const categories =
       analysis && analysis.categories?.length ? analysis.categories : categorizeSessions(sessions, cache);
     setData({
@@ -50,6 +62,7 @@ function useDayData(date, cache) {
       categories,
       timeline,
       domainHints,
+      historyAlignment,
     });
     setLoading(false);
   }, [date, cache]);
@@ -162,7 +175,7 @@ export default function App() {
 
       {loading ? (
         <div className="text-slate-500 py-20 text-center">Loading…</div>
-      ) : !data || data.sessions.length === 0 ? (
+      ) : !data || (data.sessions.length === 0 && data.openSeconds === 0) ? (
         <div className="text-slate-500 py-20 text-center">
           No activity tracked for {date}. Browse a little, then come back.
         </div>
@@ -197,6 +210,8 @@ export default function App() {
             />
             {analysis ? <ThemeList themes={analysis.themes} /> : null}
           </div>
+
+          <HistoryReference alignment={data.historyAlignment} />
 
           <Timeline timeline={data.timeline} />
         </div>

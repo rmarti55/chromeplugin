@@ -348,9 +348,46 @@ export function computeHourly(events, dayStart, dayEnd, now) {
         .slice(0, 2)
         .map((d) => `${d.domain} (${formatDuration(d.seconds)})`)
         .join(", ");
-      return { hour: formatHour(hs), activity, total, domains };
+      return { hour: formatHour(hs), hourStartTs: hs, activity, total, domains };
     })
     .filter((h) => h.total > 0);
+}
+
+// Chrome-open seconds bucketed by clock hour (idle still counts).
+export function computeHourlyPresence(events, dayStart, dayEnd, now) {
+  const clipHi = Math.min(dayEnd, now ?? dayEnd);
+  const hours = new Map();
+  const state = { counting: false };
+  let lastTs = null;
+
+  const addChunk = (from, to) => {
+    let cur = from;
+    while (cur < to) {
+      const d = new Date(cur);
+      d.setMinutes(0, 0, 0);
+      const hs = d.getTime();
+      const chunkEnd = Math.min(to, hs + 3600000);
+      hours.set(hs, (hours.get(hs) || 0) + (chunkEnd - cur) / 1000);
+      cur = chunkEnd;
+    }
+  };
+
+  const accrue = (untilTs) => {
+    if (lastTs === null || !state.counting) return;
+    if (untilTs - lastTs > MAX_GAP_MS) return;
+    const a = Math.max(lastTs, dayStart);
+    const b = Math.min(untilTs, clipHi);
+    if (b > a) addChunk(a, b);
+  };
+
+  for (const ev of events) {
+    accrue(ev.ts);
+    applyPresenceEvent(state, ev);
+    lastTs = ev.ts;
+  }
+  accrue(clipHi);
+
+  return hours;
 }
 
 // Load events for a day (including the preceding boundary event).
@@ -384,7 +421,11 @@ export async function getDayMetrics(dateStr, now = Date.now()) {
   const openSeconds = computePresenceSeconds(events, start, end, now);
   const domainHints = domainHintsToObject(computeDomainHints(events));
   const topDomains = aggregateByDomain(sessions, domainHints);
-  const timeline = computeHourly(events, start, end, now);
+  const presenceByHour = computeHourlyPresence(events, start, end, now);
+  const timeline = computeHourly(events, start, end, now).map((entry) => ({
+    ...entry,
+    openSeconds: Math.round(presenceByHour.get(entry.hourStartTs) || 0),
+  }));
   return {
     activeSeconds,
     openSeconds,
