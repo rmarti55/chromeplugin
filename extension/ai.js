@@ -10,6 +10,7 @@ import {
   aggregateByDomain,
   saveAnalysis,
   getLastEventTsInDay,
+  getDomainHintsForDay,
 } from "./db.js";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -21,7 +22,7 @@ function getSettings() {
   });
 }
 
-function buildDomainSummary(entries) {
+function buildDomainSummary(entries, domainHints = {}) {
   const byDomain = {};
   for (const e of entries) {
     if (!byDomain[e.domain]) byDomain[e.domain] = { minutes: 0, titles: [], visits: 0 };
@@ -33,7 +34,14 @@ function buildDomainSummary(entries) {
   }
   return Object.entries(byDomain)
     .sort(([, a], [, b]) => b.minutes - a.minutes)
-    .map(([domain, d]) => `- ${domain}: ${Math.round(d.minutes)} min, ${d.visits} visits\n  Pages: ${d.titles.join(", ")}`)
+    .map(([domain, d]) => {
+      const hint = domainHints[domain];
+      const hintLine =
+        hint?.automationHint && hint.automationHint !== "none" && hint.hintNote
+          ? `\n  Pattern: ${hint.hintNote}`
+          : "";
+      return `- ${domain}: ${Math.round(d.minutes)} min, ${d.visits} navigations\n  Pages: ${d.titles.join(", ")}${hintLine}`;
+    })
     .join("\n");
 }
 
@@ -47,7 +55,7 @@ function buildPrompt(date, domainSummary, totalMinutes, goalText) {
 
   return `You are a calm, honest mirror for how someone spent their day online. This is for the person themselves — not a manager. Be specific and kind but do not flatter.
 
-Browsing activity for ${date} (time spent is MEASURED active time, not an estimate):
+Browsing activity for ${date} (time spent is MEASURED active time while Chrome is focused, not an estimate; this is NOT Chrome History):
 ${domainSummary}
 
 Total active time: ${totalMinutes} minutes
@@ -63,6 +71,8 @@ Respond with ONLY valid JSON in this exact format:
 }
 
 Rules:
+- Lead with minutes and themes, not visit/navigations counts. Navigation counts are secondary.
+- Do NOT treat high navigation counts as deep engagement. If a domain has a "Pattern:" note (rapid reloads, query churn, burst navigation), mention possible testing, automation, or rapid lookups — never claim a specific AI agent (Claude, Codex, Cursor) initiated the activity unless the person simply visited that product's website.
 - Categories are broad ("Software Development", "Social Media", "Entertainment", "Research", "Communication", "Shopping", "News", "Productivity", "Finance", "Health", "Education", "Travel").
 - Themes are specific clusters ("Learning React hooks", "Job searching").
 - Percentages must sum to 100. Category minutes must sum to ${totalMinutes}.
@@ -128,7 +138,10 @@ export async function analyzeDay(dateStr) {
   }
 
   const now = Date.now();
-  const sessions = await getSessionsForDay(dateStr, now);
+  const [sessions, domainHints] = await Promise.all([
+    getSessionsForDay(dateStr, now),
+    getDomainHintsForDay(dateStr, now),
+  ]);
   if (!sessions.length) {
     throw new Error("No tracked activity for this day yet.");
   }
@@ -138,7 +151,7 @@ export async function analyzeDay(dateStr) {
   const totalMinutes = Math.round(totalSeconds / 60);
   const lastEventTs = await getLastEventTsInDay(dateStr, now);
   const goalText = (goals || "").trim();
-  const prompt = buildPrompt(dateStr, buildDomainSummary(entries), totalMinutes, goalText);
+  const prompt = buildPrompt(dateStr, buildDomainSummary(entries, domainHints), totalMinutes, goalText);
 
   const response = await fetch(OPENROUTER_API_URL, {
     method: "POST",
@@ -176,7 +189,7 @@ export async function analyzeDay(dateStr) {
     date: dateStr,
     ...parsed,
     goalText,
-    topDomains: aggregateByDomain(sessions).slice(0, 10),
+    topDomains: aggregateByDomain(sessions, domainHints).slice(0, 10),
     totalMinutes,
     analyzedAt: new Date().toISOString(),
     activityFingerprint: { totalSeconds, lastEventTs },

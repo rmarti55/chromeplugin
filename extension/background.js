@@ -88,9 +88,10 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
 });
 
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  // Only care when the active tab's url settles.
+  // Only record actual navigations (URL changes). Load "complete" without a URL
+  // change is ignored — it was inflating visit counts on HMR, SPA reloads, etc.
   if (!tab.active) return;
-  if (!changeInfo.url && changeInfo.status !== "complete") return;
+  if (!changeInfo.url) return;
   // `tab.active` is also true for the active tab of a *background* window, so
   // confirm the tab's window is actually focused before we start counting it —
   // otherwise a background tab finishing a load would steal time.

@@ -6,6 +6,8 @@
 // losing tracked time. This module is a plain ES module with no DOM/chrome
 // dependencies, so it is imported by both the service worker and the dashboard.
 
+import { computeDomainHints, domainHintsToObject } from "./heuristics.js";
+
 const DB_NAME = "chrome-activity";
 const DB_VERSION = 1;
 
@@ -209,6 +211,8 @@ export function computeSessions(events, dayStart, dayEnd, now) {
 
   const state = { url: null, domain: null, title: null, counting: false };
   let lastTs = null;
+  let lastVisitUrl = null;
+  let afterBoundary = false;
 
   const accrue = (untilTs) => {
     if (lastTs === null || !state.counting || !state.url) return;
@@ -221,8 +225,16 @@ export function computeSessions(events, dayStart, dayEnd, now) {
 
   for (const ev of events) {
     accrue(ev.ts);
-    if (ev.url && ["activate", "urlchange", "focus", "active"].includes(ev.type)) {
-      touch(ev.url, ev.domain, ev.title).visits += 1;
+    // Visits = real navigations only (urlchange), not tab switches or focus returns.
+    if (ev.type === "urlchange" && ev.url) {
+      if (afterBoundary || ev.url !== lastVisitUrl) {
+        touch(ev.url, ev.domain, ev.title).visits += 1;
+        lastVisitUrl = ev.url;
+        afterBoundary = false;
+      }
+    }
+    if (["blur", "idle", "locked"].includes(ev.type)) {
+      afterBoundary = true;
     }
     applyEvent(state, ev);
     lastTs = ev.ts;
@@ -296,15 +308,26 @@ export function computeHourly(events, dayStart, dayEnd, now) {
     .filter((h) => h.total > 0);
 }
 
-// Convenience: load a day's events (incl. the preceding one) and reduce them.
-export async function getSessionsForDay(dateStr, now = Date.now()) {
+// Load events for a day (including the preceding boundary event).
+export async function getEventsForDay(dateStr, now = Date.now()) {
   const { start, end } = dayBounds(dateStr);
   const [preceding, dayEvents] = await Promise.all([
     getLastEventBefore(start),
     getEventsInRange(start, Math.min(end, now + 1)),
   ]);
-  const events = preceding ? [preceding, ...dayEvents] : dayEvents;
+  return preceding ? [preceding, ...dayEvents] : dayEvents;
+}
+
+// Convenience: load a day's events (incl. the preceding one) and reduce them.
+export async function getSessionsForDay(dateStr, now = Date.now()) {
+  const { start, end } = dayBounds(dateStr);
+  const events = await getEventsForDay(dateStr, now);
   return computeSessions(events, start, end, now);
+}
+
+export async function getDomainHintsForDay(dateStr, now = Date.now()) {
+  const events = await getEventsForDay(dateStr, now);
+  return domainHintsToObject(computeDomainHints(events));
 }
 
 // Same, but for the hourly timeline.
@@ -341,12 +364,19 @@ export async function getCurrentActivity(now = Date.now()) {
 }
 
 // Aggregate sessions by domain for top-sites / category views.
-export function aggregateByDomain(sessions) {
+export function aggregateByDomain(sessions, domainHints = {}) {
   const byDomain = new Map();
   for (const s of sessions) {
     let d = byDomain.get(s.domain);
     if (!d) {
-      d = { domain: s.domain, seconds: 0, visits: 0 };
+      const hint = domainHints[s.domain] || {};
+      d = {
+        domain: s.domain,
+        seconds: 0,
+        visits: 0,
+        automationHint: hint.automationHint || "none",
+        hintNote: hint.hintNote || null,
+      };
       byDomain.set(s.domain, d);
     }
     d.seconds += s.seconds;
@@ -358,6 +388,8 @@ export function aggregateByDomain(sessions) {
       seconds: d.seconds,
       minutes: Math.round(d.seconds / 60),
       visits: d.visits,
+      automationHint: d.automationHint,
+      hintNote: d.hintNote,
     }))
     .sort((a, b) => b.seconds - a.seconds);
 }

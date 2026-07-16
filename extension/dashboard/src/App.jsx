@@ -6,6 +6,7 @@ import {
   getAnalysis,
   listActivityDays,
   listAnalysisDays,
+  getDomainHintsForDay,
   toDateStr,
 } from "../../db.js";
 import { categorizeSessions } from "../../categorize.js";
@@ -39,12 +40,13 @@ function useDayData(date, cache) {
 
   const load = useCallback(async () => {
     const now = Date.now();
-    const [sessions, analysis, timeline] = await Promise.all([
+    const [sessions, analysis, timeline, domainHints] = await Promise.all([
       getSessionsForDay(date, now),
       getAnalysis(date),
       getHourlyForDay(date, now),
+      getDomainHintsForDay(date, now),
     ]);
-    const topDomains = aggregateByDomain(sessions);
+    const topDomains = aggregateByDomain(sessions, domainHints);
     const totalSeconds = sessions.reduce((s, x) => s + x.seconds, 0);
     // Prefer AI categories when present, else local (cache-aware) buckets.
     const categories =

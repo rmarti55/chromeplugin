@@ -1,4 +1,5 @@
 import { formatDuration } from "../../../db.js";
+import { HINT_LABELS } from "../../../heuristics.js";
 
 function formatAnalyzedAt(iso) {
   if (!iso) return null;
@@ -45,19 +46,38 @@ export function DailySummary({
 
       {topDomains && topDomains.length > 0 && (
         <div>
-          <h3 className="text-sm font-medium text-slate-400 mb-3">Top Sites</h3>
+          <h3 className="text-sm font-medium text-slate-400 mb-1">Top Sites</h3>
+          <p className="text-xs text-slate-500 mb-3">
+            Time = focused active Chrome. Visits = navigations. Not Chrome History.
+          </p>
           <div className="space-y-2">
-            {topDomains.slice(0, 8).map((d) => (
-              <div key={d.domain} className="flex items-center justify-between text-sm">
-                <span className="text-slate-300 truncate mr-4">{d.domain}</span>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-slate-400">{d.visits} visits</span>
-                  <span className="text-indigo-400 font-medium w-20 text-right tabular-nums">
-                    {formatDuration(d.seconds ?? (d.minutes || 0) * 60)}
-                  </span>
+            {topDomains.slice(0, 8).map((d) => {
+              const badge =
+                d.automationHint && d.automationHint !== "none"
+                  ? HINT_LABELS[d.automationHint]
+                  : null;
+              return (
+                <div key={d.domain} className="flex items-center justify-between text-sm gap-2">
+                  <div className="flex items-center gap-2 min-w-0 mr-2">
+                    <span className="text-slate-300 truncate">{d.domain}</span>
+                    {badge && (
+                      <span
+                        className="shrink-0 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-300/90 border border-amber-500/25"
+                        title={d.hintNote || badge}
+                      >
+                        {badge}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-slate-400">{d.visits} visits</span>
+                    <span className="text-indigo-400 font-medium w-20 text-right tabular-nums">
+                      {formatDuration(d.seconds ?? (d.minutes || 0) * 60)}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
