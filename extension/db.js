@@ -128,7 +128,11 @@ export function dayBounds(dateStr) {
 
 export function fingerprintsMatch(a, b) {
   if (!a || !b) return false;
-  return a.totalSeconds === b.totalSeconds && a.lastEventTs === b.lastEventTs;
+  return (
+    a.activeSeconds === b.activeSeconds &&
+    a.openSeconds === b.openSeconds &&
+    a.lastEventTs === b.lastEventTs
+  );
 }
 
 export async function getLastEventTsInDay(dateStr, now = Date.now()) {
@@ -165,14 +169,12 @@ function formatHour(ts) {
 
 // --- Session derivation (pure) ---------------------------------------------
 
-function applyEvent(state, ev) {
+function applyEvent(state, ev, mode = "active") {
   switch (ev.type) {
     case "activate":
     case "urlchange":
     case "focus":
     case "active":
-      // A web page → track it. A non-web page (chrome://, blank) carries no
-      // url; clear the current url so the *previous* page stops accruing.
       if (ev.url) {
         state.url = ev.url;
         state.domain = ev.domain;
@@ -185,11 +187,54 @@ function applyEvent(state, ev) {
       state.counting = true;
       break;
     case "blur":
-    case "idle":
     case "locked":
       state.counting = false;
       break;
+    case "idle":
+      if (mode === "active") state.counting = false;
+      break;
   }
+}
+
+function applyPresenceEvent(state, ev) {
+  switch (ev.type) {
+    case "activate":
+    case "urlchange":
+    case "focus":
+    case "active":
+      state.counting = true;
+      break;
+    case "blur":
+    case "locked":
+      state.counting = false;
+      break;
+    case "idle":
+      break;
+  }
+}
+
+// Total seconds Chrome was the focused app (idle reading still counts).
+export function computePresenceSeconds(events, dayStart, dayEnd, now) {
+  const clipHi = Math.min(dayEnd, now ?? dayEnd);
+  const state = { counting: false };
+  let lastTs = null;
+  let total = 0;
+
+  const accrue = (untilTs) => {
+    if (lastTs === null || !state.counting) return;
+    if (untilTs - lastTs > MAX_GAP_MS) return;
+    const a = Math.max(lastTs, dayStart);
+    const b = Math.min(untilTs, clipHi);
+    if (b > a) total += (b - a) / 1000;
+  };
+
+  for (const ev of events) {
+    accrue(ev.ts);
+    applyPresenceEvent(state, ev);
+    lastTs = ev.ts;
+  }
+  accrue(clipHi);
+  return Math.round(total);
 }
 
 // Reduce an ordered event list into per-URL sessions for a day.
@@ -330,6 +375,26 @@ export async function getDomainHintsForDay(dateStr, now = Date.now()) {
   return domainHintsToObject(computeDomainHints(events));
 }
 
+// All day metrics from one event load.
+export async function getDayMetrics(dateStr, now = Date.now()) {
+  const { start, end } = dayBounds(dateStr);
+  const events = await getEventsForDay(dateStr, now);
+  const sessions = computeSessions(events, start, end, now);
+  const activeSeconds = sessions.reduce((s, x) => s + x.seconds, 0);
+  const openSeconds = computePresenceSeconds(events, start, end, now);
+  const domainHints = domainHintsToObject(computeDomainHints(events));
+  const topDomains = aggregateByDomain(sessions, domainHints);
+  const timeline = computeHourly(events, start, end, now);
+  return {
+    activeSeconds,
+    openSeconds,
+    sessions,
+    topDomains,
+    timeline,
+    domainHints,
+  };
+}
+
 // Same, but for the hourly timeline.
 export async function getHourlyForDay(dateStr, now = Date.now()) {
   const { start, end } = dayBounds(dateStr);
@@ -402,7 +467,7 @@ export function sessionsToHistoryEntries(sessions) {
     domain: s.domain,
     visitTime: 0,
     duration: s.seconds, // measured seconds, not an estimate
-    visitCount: s.visits || 1,
+    visitCount: s.visits,
   }));
 }
 

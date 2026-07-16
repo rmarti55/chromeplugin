@@ -10,8 +10,7 @@ writes you an honest 3–4 sentence summary measured against your own goals.
 - **Bring-your-own-key.** The daily AI summary calls OpenRouter directly with *your* API key,
   stored only on your device. Your activity is never sent anywhere except the AI provider you
   chose, and only when you ask for a summary.
-- **Honest time.** Time-on-site is *measured* active time (idle time excluded), not estimated
-  from visit counts.
+- **Honest time.** Two clocks from the same event log: **Chrome open** (browser in front) and **Active use** (in front + recent input). Site breakdowns use active use; the day total leads with Chrome open. See [`docs/time-model.md`](docs/time-model.md).
 
 ## Architecture
 
@@ -48,8 +47,8 @@ your weekly goals, browse for a bit, and hit **Summarize today**.
 ## How it works
 
 1. As you browse, the service worker records events (`activate`, `urlchange`, `focus`, `blur`,
-   `idle`, `active`) to IndexedDB with timestamps. Nothing is counted while you're idle or on
-   non-web pages.
+   `idle`, `active`) to IndexedDB with timestamps. **Chrome open** accrues while Chrome is the
+   focused app; **Active use** also pauses after ~60s without input or when you switch apps.
 2. The dashboard reduces those events into per-URL sessions with measured seconds, then buckets
    them locally into categories — no AI needed for the basic view.
 3. On demand (or automatically about once an hour when you've been active), the day's

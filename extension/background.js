@@ -9,7 +9,7 @@ import {
   putEvent,
   pruneEventsBefore,
   getAnalysis,
-  getSessionsForDay,
+  getDayMetrics,
   getLastEventTsInDay,
   toDateStr,
   fingerprintsMatch,
@@ -181,12 +181,11 @@ async function maybeAutoSummarize() {
 
   const now = Date.now();
   const dateStr = toDateStr(now);
-  const sessions = await getSessionsForDay(dateStr, now);
-  const totalSeconds = sessions.reduce((s, x) => s + x.seconds, 0);
-  if (totalSeconds < MIN_ACTIVITY_SECONDS) return;
+  const { activeSeconds, openSeconds } = await getDayMetrics(dateStr, now);
+  if (activeSeconds < MIN_ACTIVITY_SECONDS && openSeconds < MIN_ACTIVITY_SECONDS) return;
 
   const lastEventTs = await getLastEventTsInDay(dateStr, now);
-  const current = { totalSeconds, lastEventTs };
+  const current = { activeSeconds, openSeconds, lastEventTs };
 
   const existing = await getAnalysis(dateStr);
   if (existing?.activityFingerprint && fingerprintsMatch(existing.activityFingerprint, current)) {

@@ -1,11 +1,7 @@
-// Live "am I capturing right now" status for the popup and dashboard.
+// Live status for the popup and dashboard.
 //
-// IMPORTANT: this must NOT be derived from the event log. Opening the popup
-// makes the browser window lose focus, which logs a `blur` event — so reading
-// the last event would show "Paused" every time the user opens the popup to
-// check. Instead we query the ACTUAL active tab and the REAL idle state, which
-// are immune to the popup stealing focus. (Time accounting still uses the event
-// log; this is only the live indicator.)
+// Queries real Chrome focus + idle state (not the event log) so opening the
+// popup does not falsely show "paused". Time accounting still uses the log.
 
 import { getCurrentActivity } from "./db.js";
 
@@ -21,8 +17,19 @@ const isWeb = (u) => !!u && /^https?:\/\//.test(u);
 export async function getLiveStatus(now = Date.now()) {
   const hasChrome = typeof chrome !== "undefined" && chrome.tabs && chrome.idle;
   if (!hasChrome) {
-    // dev/preview without extension APIs: fall back to the event log
     return getCurrentActivity(now);
+  }
+
+  let tab = null;
+  try {
+    [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  } catch {
+    /* no tab */
+  }
+
+  // Chrome is not the focused app — neither clock is accruing.
+  if (!tab) {
+    return { status: "paused", reason: "away", message: "Chrome in background" };
   }
 
   let idleState = "active";
@@ -32,20 +39,15 @@ export async function getLiveStatus(now = Date.now()) {
     /* keep default */
   }
 
-  // The ONLY legitimate paused state: the user is genuinely idle or the screen
-  // is locked. Being on the dashboard / a non-web tab is NOT paused — capture is
-  // always running in the background.
-  if (idleState !== "active") return { status: "paused", reason: idleState };
-
-  let tab = null;
-  try {
-    [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-  } catch {
-    /* no tab */
+  if (idleState === "locked") {
+    return { status: "paused", reason: "locked", message: "Screen locked" };
+  }
+  if (idleState !== "active") {
+    return { status: "idle", reason: "idle", message: "Chrome open · no input" };
   }
 
-  // On a web page → show it. On the dashboard / a browser page → still
-  // capturing, just no specific site to name.
-  if (tab && isWeb(tab.url)) return { status: "capturing", domain: host(tab.url) };
-  return { status: "capturing" };
+  if (tab && isWeb(tab.url)) {
+    return { status: "capturing", domain: host(tab.url), message: "Active use" };
+  }
+  return { status: "capturing", message: "Chrome open" };
 }

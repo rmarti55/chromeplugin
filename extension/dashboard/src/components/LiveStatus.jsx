@@ -2,10 +2,7 @@ import { useEffect, useState } from "react";
 import { formatDuration } from "../../../db.js";
 import { getLiveStatus } from "../../../live.js";
 
-// Live "it's capturing" bar. Status reflects real idle state (not which tab is
-// active), so viewing the dashboard still reads "Capturing". The day total is
-// passed in from App (refreshed on its own poll).
-export function LiveStatus({ totalSeconds }) {
+export function LiveStatus({ openSeconds, activeSeconds }) {
   const [act, setAct] = useState({ status: "capturing" });
 
   useEffect(() => {
@@ -23,31 +20,45 @@ export function LiveStatus({ totalSeconds }) {
   }, []);
 
   const paused = act.status === "paused";
-  const dot = paused ? "bg-amber-500" : "bg-green-500";
+  const idle = act.status === "idle";
+  const dot = paused ? "bg-amber-500" : idle ? "bg-sky-500" : "bg-green-500";
 
   return (
     <div className="flex items-center justify-between gap-4 mb-8 px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
       <div className="flex items-center gap-3 min-w-0">
         <span className="relative flex h-3 w-3 shrink-0">
           {!paused && (
-            <span className="absolute inline-flex h-full w-full rounded-full bg-green-500 opacity-75 animate-ping" />
+            <span
+              className={`absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping ${idle ? "bg-sky-500" : "bg-green-500"}`}
+            />
           )}
           <span className={`relative inline-flex rounded-full h-3 w-3 ${dot}`} />
         </span>
         <span className="text-sm text-slate-300 truncate">
           {paused ? (
-            "Paused — you're idle"
+            act.message || "Chrome in background"
+          ) : idle ? (
+            act.message || "Chrome open · no input"
           ) : act.domain ? (
             <>
-              Capturing · <span className="text-slate-100 font-medium">{act.domain}</span>
+              Active use · <span className="text-slate-100 font-medium">{act.domain}</span>
             </>
           ) : (
-            "Capturing your activity"
+            act.message || "Chrome open"
           )}
         </span>
       </div>
-      <div className="text-sm text-slate-400 shrink-0">
-        <span className="tabular-nums text-indigo-400 font-semibold">{formatDuration(totalSeconds || 0)}</span> today
+      <div className="text-sm text-slate-400 shrink-0 text-right">
+        <div>
+          <span className="tabular-nums text-indigo-400 font-semibold">
+            {formatDuration(openSeconds || 0)}
+          </span>{" "}
+          Chrome open
+        </div>
+        <div className="text-xs text-slate-500">
+          Active use:{" "}
+          <span className="tabular-nums text-slate-400">{formatDuration(activeSeconds || 0)}</span>
+        </div>
       </div>
     </div>
   );

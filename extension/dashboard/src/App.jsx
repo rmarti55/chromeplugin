@@ -1,12 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
 import {
-  getSessionsForDay,
-  getHourlyForDay,
-  aggregateByDomain,
+  getDayMetrics,
   getAnalysis,
   listActivityDays,
   listAnalysisDays,
-  getDomainHintsForDay,
   toDateStr,
 } from "../../db.js";
 import { categorizeSessions } from "../../categorize.js";
@@ -40,18 +37,20 @@ function useDayData(date, cache) {
 
   const load = useCallback(async () => {
     const now = Date.now();
-    const [sessions, analysis, timeline, domainHints] = await Promise.all([
-      getSessionsForDay(date, now),
-      getAnalysis(date),
-      getHourlyForDay(date, now),
-      getDomainHintsForDay(date, now),
-    ]);
-    const topDomains = aggregateByDomain(sessions, domainHints);
-    const totalSeconds = sessions.reduce((s, x) => s + x.seconds, 0);
-    // Prefer AI categories when present, else local (cache-aware) buckets.
+    const [metrics, analysis] = await Promise.all([getDayMetrics(date, now), getAnalysis(date)]);
+    const { sessions, topDomains, timeline, domainHints, activeSeconds, openSeconds } = metrics;
     const categories =
       analysis && analysis.categories?.length ? analysis.categories : categorizeSessions(sessions, cache);
-    setData({ sessions, analysis, topDomains, totalSeconds, categories, timeline });
+    setData({
+      sessions,
+      analysis,
+      topDomains,
+      activeSeconds,
+      openSeconds,
+      categories,
+      timeline,
+      domainHints,
+    });
     setLoading(false);
   }, [date, cache]);
 
@@ -135,7 +134,9 @@ export default function App() {
         </div>
       </header>
 
-      {isToday && <LiveStatus totalSeconds={data?.totalSeconds} />}
+      {isToday && (
+        <LiveStatus openSeconds={data?.openSeconds} activeSeconds={data?.activeSeconds} />
+      )}
 
       {days.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-8">
@@ -172,7 +173,8 @@ export default function App() {
               summary={analysis.summary}
               observation={analysis.observation}
               goalAssessment={analysis.goalAssessment}
-              totalSeconds={data.totalSeconds}
+              openSeconds={data.openSeconds}
+              activeSeconds={data.activeSeconds}
               topDomains={data.topDomains}
               analyzedAt={analysis.analyzedAt}
             />
@@ -188,7 +190,11 @@ export default function App() {
           <CategoryChart categories={data.categories} />
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <SessionsList sessions={data.sessions} categoryCache={cache} />
+            <SessionsList
+              sessions={data.sessions}
+              categoryCache={cache}
+              domainHints={data.domainHints}
+            />
             {analysis ? <ThemeList themes={analysis.themes} /> : null}
           </div>
 

@@ -1,4 +1,4 @@
-import { getSessionsForDay, aggregateByDomain, formatDuration, toDateStr } from "./db.js";
+import { getDayMetrics, aggregateByDomain, formatDuration, toDateStr } from "./db.js";
 import { getLiveStatus } from "./live.js";
 
 const $ = (id) => document.getElementById(id);
@@ -14,55 +14,58 @@ function openDashboard() {
   chrome.tabs.create({ url: chrome.runtime.getURL("dashboard/dist/index.html") });
 }
 
-// Live capture indicator — refreshed once a second while the popup is open.
-// Status reflects real idle state, so it isn't fooled by the popup stealing
-// window focus.
 async function renderLive() {
   const dot = $("dot");
   const text = $("liveText");
   try {
     const a = await getLiveStatus(Date.now());
+    text.textContent = "";
     if (a.status === "paused") {
       dot.className = "dot paused";
-      text.textContent = "Paused — you're idle";
+      text.appendChild(document.createTextNode(a.message || "Chrome in background"));
+    } else if (a.status === "idle") {
+      dot.className = "dot paused";
+      text.appendChild(document.createTextNode(a.message || "Chrome open · no input"));
     } else if (a.domain) {
       dot.className = "dot capturing";
-      text.textContent = "";
-      text.appendChild(document.createTextNode("Capturing · "));
+      text.appendChild(document.createTextNode("Active use · "));
       const site = document.createElement("span");
       site.className = "mono";
       site.textContent = a.domain;
       text.appendChild(site);
     } else {
       dot.className = "dot capturing";
-      text.textContent = "Capturing your activity";
+      text.appendChild(document.createTextNode(a.message || "Chrome open"));
     }
   } catch {
     dot.className = "dot capturing";
-    text.textContent = "Capturing";
+    text.textContent = "Chrome open";
   }
 }
 
 async function renderStats() {
   const el = $("stats");
   try {
-    const sessions = await getSessionsForDay(todayStr(), Date.now());
-    if (!sessions.length) {
+    const { openSeconds, activeSeconds, sessions } = await getDayMetrics(todayStr(), Date.now());
+    if (!sessions.length && openSeconds === 0) {
       el.textContent = "No activity tracked yet today.";
       return;
     }
-    const seconds = sessions.reduce((s, x) => s + x.seconds, 0);
     const domains = aggregateByDomain(sessions).length;
     el.textContent = "";
-    el.appendChild(document.createTextNode("Today so far: "));
-    const strongT = document.createElement("strong");
-    strongT.textContent = formatDuration(seconds);
-    el.appendChild(strongT);
-    el.appendChild(document.createTextNode(" across "));
-    const strongD = document.createElement("strong");
-    strongD.textContent = String(domains);
-    el.appendChild(strongD);
-    el.appendChild(document.createTextNode(` site${domains === 1 ? "" : "s"}.`));
+    el.appendChild(document.createTextNode("Chrome open: "));
+    const strongOpen = document.createElement("strong");
+    strongOpen.textContent = formatDuration(openSeconds);
+    el.appendChild(strongOpen);
+    el.appendChild(document.createTextNode(" · Active use: "));
+    const strongActive = document.createElement("strong");
+    strongActive.textContent = formatDuration(activeSeconds);
+    el.appendChild(strongActive);
+    if (domains > 0) {
+      el.appendChild(document.createTextNode(` · ${domains} site${domains === 1 ? "" : "s"}.`));
+    } else {
+      el.appendChild(document.createTextNode("."));
+    }
   } catch {
     el.textContent = "Could not read local activity.";
   }

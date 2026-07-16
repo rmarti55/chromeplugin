@@ -10,23 +10,37 @@ export function DailySummary({
   summary,
   observation,
   goalAssessment,
-  totalSeconds,
+  openSeconds,
+  activeSeconds,
   topDomains,
   analyzedAt,
 }) {
   const lastSummarized = formatAnalyzedAt(analyzedAt);
+  const showGap = openSeconds > 0 && activeSeconds > 0 && openSeconds > activeSeconds * 1.25;
 
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-slate-100">Summary</h2>
         <div className="text-right">
-          <span className="text-sm text-slate-400 block">{formatDuration(totalSeconds || 0)} total</span>
+          <span className="text-sm text-slate-400 block">
+            {formatDuration(openSeconds || 0)} Chrome open
+          </span>
+          <span className="text-xs text-slate-500 block">
+            Active use: {formatDuration(activeSeconds || 0)}
+          </span>
           {lastSummarized && (
             <span className="text-xs text-slate-500">Last summarized · {lastSummarized}</span>
           )}
         </div>
       </div>
+
+      {showGap && (
+        <p className="text-xs text-slate-500 mb-4">
+          Chrome was open {formatDuration(openSeconds)}; {formatDuration(activeSeconds)} had recent
+          input. Reading or time in other apps explains the gap.
+        </p>
+      )}
 
       {summary && <p className="text-slate-300 leading-relaxed mb-4">{summary}</p>}
 
@@ -48,7 +62,7 @@ export function DailySummary({
         <div>
           <h3 className="text-sm font-medium text-slate-400 mb-1">Top Sites</h3>
           <p className="text-xs text-slate-500 mb-3">
-            Time = focused active Chrome. Visits = navigations. Not Chrome History.
+            Active use per site. Visits = navigations. Not Chrome History.
           </p>
           <div className="space-y-2">
             {topDomains.slice(0, 8).map((d) => {
