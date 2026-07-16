@@ -116,10 +116,23 @@ export async function pruneEventsBefore(ts) {
 
 // --- Day math ---------------------------------------------------------------
 
-// Local-time bounds for a "YYYY-MM-DD" string.
+// Local-time bounds for a "YYYY-MM-DD" string (midnight to next local midnight).
 export function dayBounds(dateStr) {
   const start = new Date(dateStr + "T00:00:00").getTime();
-  return { start, end: start + 24 * 60 * 60 * 1000 };
+  const nextMidnight = new Date(start);
+  nextMidnight.setDate(nextMidnight.getDate() + 1);
+  return { start, end: nextMidnight.getTime() };
+}
+
+export function fingerprintsMatch(a, b) {
+  if (!a || !b) return false;
+  return a.totalSeconds === b.totalSeconds && a.lastEventTs === b.lastEventTs;
+}
+
+export async function getLastEventTsInDay(dateStr, now = Date.now()) {
+  const { start, end } = dayBounds(dateStr);
+  const events = await getEventsInRange(start, Math.min(end, now + 1));
+  return events.length ? events[events.length - 1].ts : null;
 }
 
 export function toDateStr(ts) {

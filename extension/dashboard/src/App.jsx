@@ -172,6 +172,7 @@ export default function App() {
               goalAssessment={analysis.goalAssessment}
               totalSeconds={data.totalSeconds}
               topDomains={data.topDomains}
+              analyzedAt={analysis.analyzedAt}
             />
           ) : (
             <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">

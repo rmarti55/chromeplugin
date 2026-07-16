@@ -9,6 +9,7 @@ import {
   sessionsToHistoryEntries,
   aggregateByDomain,
   saveAnalysis,
+  getLastEventTsInDay,
 } from "./db.js";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -122,13 +123,16 @@ export async function analyzeDay(dateStr) {
     throw new Error("No API key set. Add your OpenRouter key in the extension popup.");
   }
 
-  const sessions = await getSessionsForDay(dateStr, Date.now());
+  const now = Date.now();
+  const sessions = await getSessionsForDay(dateStr, now);
   if (!sessions.length) {
     throw new Error("No tracked activity for this day yet.");
   }
 
   const entries = sessionsToHistoryEntries(sessions);
-  const totalMinutes = Math.round(entries.reduce((s, e) => s + e.duration, 0) / 60);
+  const totalSeconds = entries.reduce((s, e) => s + e.duration, 0);
+  const totalMinutes = Math.round(totalSeconds / 60);
+  const lastEventTs = await getLastEventTsInDay(dateStr, now);
   const goalText = (goals || "").trim();
   const prompt = buildPrompt(dateStr, buildDomainSummary(entries), totalMinutes, goalText);
 
@@ -171,6 +175,7 @@ export async function analyzeDay(dateStr) {
     topDomains: aggregateByDomain(sessions).slice(0, 10),
     totalMinutes,
     analyzedAt: new Date().toISOString(),
+    activityFingerprint: { totalSeconds, lastEventTs },
   };
 
   await saveAnalysis(analysis);

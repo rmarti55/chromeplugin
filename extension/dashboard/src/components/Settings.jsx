@@ -9,19 +9,24 @@ export function Settings({ open, onClose }) {
   const [apiKey, setApiKey] = useState("");
   const [model, setModel] = useState("");
   const [goals, setGoals] = useState("");
+  const [autoSummaryHourly, setAutoSummaryHourly] = useState(true);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (!hasChrome) return;
-    chrome.storage.local.get(["apiKey", "model", "goals"], (d) => {
+    chrome.storage.local.get(["apiKey", "model", "goals", "autoSummaryHourly"], (d) => {
       setApiKey(d.apiKey || "");
       setModel(d.model || "");
       setGoals(d.goals || "");
+      // Default on when a key is set; explicit false disables.
+      setAutoSummaryHourly(d.autoSummaryHourly !== false);
     });
   }, [open]);
 
   const save = () => {
-    if (hasChrome) chrome.storage.local.set({ apiKey, model, goals });
+    if (hasChrome) {
+      chrome.storage.local.set({ apiKey, model, goals, autoSummaryHourly });
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
   };
@@ -74,6 +79,22 @@ export function Settings({ open, onClose }) {
           autoComplete="off"
           className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 mb-5"
         />
+
+        <label className="flex items-start gap-3 mb-5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={autoSummaryHourly}
+            onChange={(e) => setAutoSummaryHourly(e.target.checked)}
+            className="mt-1 rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-indigo-500"
+          />
+          <span>
+            <span className="block text-sm text-slate-200">Auto-summarize hourly</span>
+            <span className="block text-[11px] text-slate-500 mt-0.5">
+              Refreshes today&apos;s summary about once an hour when you&apos;ve been active.
+              Skips API calls when nothing new happened. Manual summarize always works.
+            </span>
+          </span>
+        </label>
 
         <div className="flex items-center justify-end gap-3">
           {saved && <span className="text-sm text-green-400">Saved</span>}

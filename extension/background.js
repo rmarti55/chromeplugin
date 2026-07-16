@@ -5,8 +5,18 @@
 // at read time (see db.js), so the worker being killed at any moment loses
 // nothing. Periodic work uses chrome.alarms, never setInterval.
 
-import { putEvent, pruneEventsBefore, getAnalysis } from "./db.js";
+import {
+  putEvent,
+  pruneEventsBefore,
+  getAnalysis,
+  getSessionsForDay,
+  getLastEventTsInDay,
+  toDateStr,
+  fingerprintsMatch,
+} from "./db.js";
 import { analyzeDay } from "./ai.js";
+
+const MIN_ACTIVITY_SECONDS = 120; // 2 min before auto-summary runs
 
 // Fire "idle" after this many seconds of no keyboard/mouse input. Tradeoff:
 // chrome.idle cannot see media playback, so passively watching a long video or
@@ -158,17 +168,30 @@ async function maybeNudge() {
   chrome.action.setBadgeText({ text: "•" });
 }
 
-// Once past end-of-day, auto-generate today's narrative if a key is set and we
-// haven't already analyzed today.
+// Hourly auto-summary: refresh today's narrative when new activity has accrued.
+// Skips API calls when idle (fingerprint unchanged) or below MIN_ACTIVITY_SECONDS.
 async function maybeAutoSummarize() {
-  const { apiKey } = await chrome.storage.local.get("apiKey");
+  const { apiKey, autoSummaryHourly } = await chrome.storage.local.get([
+    "apiKey",
+    "autoSummaryHourly",
+  ]);
   if (!apiKey) return;
-  const hour = new Date().getHours();
-  if (hour < 21) return; // only in the evening
-  const today = new Date();
-  const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-  const already = await getAnalysis(dateStr);
-  if (already) return;
+  if (autoSummaryHourly === false) return;
+
+  const now = Date.now();
+  const dateStr = toDateStr(now);
+  const sessions = await getSessionsForDay(dateStr, now);
+  const totalSeconds = sessions.reduce((s, x) => s + x.seconds, 0);
+  if (totalSeconds < MIN_ACTIVITY_SECONDS) return;
+
+  const lastEventTs = await getLastEventTsInDay(dateStr, now);
+  const current = { totalSeconds, lastEventTs };
+
+  const existing = await getAnalysis(dateStr);
+  if (existing?.activityFingerprint && fingerprintsMatch(existing.activityFingerprint, current)) {
+    return;
+  }
+
   try {
     await analyzeDay(dateStr);
   } catch {

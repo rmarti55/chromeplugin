@@ -19,7 +19,7 @@ Everything is the Chrome extension in `extension/`:
 
 | File | Role |
 |---|---|
-| `background.js` | Service worker. Logs durable, timestamped events (tab/window/idle changes) to IndexedDB. Dwell time is derived at read time, so killing the worker loses nothing. Runs alarms for the passive nudge and the evening auto-summary. |
+| `background.js` | Service worker. Logs durable, timestamped events (tab/window/idle changes) to IndexedDB. Dwell time is derived at read time, so killing the worker loses nothing. Runs alarms for the passive nudge and hourly auto-summary (activity-gated). |
 | `db.js` | IndexedDB wrapper + the pure session-derivation logic (events → per-URL sessions). Shared by the service worker and the dashboard. |
 | `categorize.js` | Cheap local domain→category buckets (no AI/network). |
 | `ai.js` | The daily narrative: BYO-key OpenRouter call, goal-aware prompt, JSON parse + save. |
@@ -52,9 +52,13 @@ your weekly goals, browse for a bit, and hit **Summarize today**.
    non-web pages.
 2. The dashboard reduces those events into per-URL sessions with measured seconds, then buckets
    them locally into categories — no AI needed for the basic view.
-3. On demand (or automatically in the evening), the day's sessions are bundled and sent to
-   Claude via OpenRouter with your goals woven in. You get a narrative, one honest observation,
-   and a goal-vs-actual line.
+3. On demand (or automatically about once an hour when you've been active), the day's
+   sessions are bundled and sent to Claude via OpenRouter with your goals woven in. Auto-summary
+   skips API calls when nothing new happened since the last run; manual **Summarize** always
+   works. You get a narrative, one honest observation, and a goal-vs-actual line.
+
+Days are anchored to your local calendar (midnight to midnight). Week/month views can build on
+this day model later.
 
 ## Chrome Web Store permission justifications
 

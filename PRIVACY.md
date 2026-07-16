@@ -14,8 +14,8 @@ store, or have access to your data.
 
 ## The one time data leaves your device
 
-When _you_ request a daily summary (by clicking “Summarize”, or via the optional evening
-auto-summary), the day’s activity is sent **directly from your browser** to
+When _you_ request a daily summary (by clicking “Summarize”, or via the optional hourly
+auto-summary when you've been active), the day’s activity is sent **directly from your browser** to
 [OpenRouter](https://openrouter.ai/privacy), using **your own API key**, so an AI model can write
 your narrative. This is the only outbound network request the extension makes. We are not a party to
 that transfer and never see it.
