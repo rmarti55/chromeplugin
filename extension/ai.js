@@ -91,7 +91,11 @@ const clean = (name) => (isBanned(name) ? FALLBACK : name.trim());
 function normalize(parsed) {
   const categories = (Array.isArray(parsed.categories) ? parsed.categories : [])
     .filter((c) => c && typeof c.name !== "undefined")
-    .map((c) => ({ ...c, name: clean(c.name) }));
+    .map((c) => ({
+      ...c,
+      name: clean(c.name),
+      seconds: c.seconds ?? Math.round((c.minutes || 0) * 60),
+    }));
 
   const themes = (Array.isArray(parsed.themes) ? parsed.themes : [])
     .filter((t) => t && !isBanned(t.name))
