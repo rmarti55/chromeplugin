@@ -15,7 +15,7 @@ export function DesktopApps({ desktop, chromeOpenSeconds, chromeActiveSeconds, l
   }
 
   const { otherApps, chromeApp, syncedDevices } = desktop;
-  const macOffline = live?.status === "offline";
+  const macOffline = live?.mac?.status === "offline";
 
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-5">

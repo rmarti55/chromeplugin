@@ -5,6 +5,9 @@ import Foundation
 final class AppTracker: ObservableObject {
     static let shared = AppTracker()
 
+    /// kCGAnyInputEventType — keyboard, mouse, or tablet (not `.null`).
+    private static let anyInputEventType = CGEventType(rawValue: ~0)!
+
     @Published private(set) var todayPresenceSeconds = 0
     @Published private(set) var todayActiveSeconds = 0
     @Published private(set) var topApps: [AppSession] = []
@@ -28,6 +31,7 @@ final class AppTracker: ObservableObject {
             self?.checkIdle()
         }
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            self?.checkIdle()
             self?.refreshToday()
             self?.writeLiveStatus()
             self?.refreshBridgeStatus()
@@ -99,9 +103,13 @@ final class AppTracker: ObservableObject {
         writeLiveStatus()
     }
 
+    private func inputIdleSeconds() -> TimeInterval {
+        CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: Self.anyInputEventType)
+    }
+
     private func checkIdle() {
         guard !isLocked else { return }
-        let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .null)
+        let idle = inputIdleSeconds()
         let threshold = MirrorConstants.idleSeconds
         if idle >= threshold && !isIdle {
             isIdle = true
@@ -115,6 +123,7 @@ final class AppTracker: ObservableObject {
     }
 
     private func writeLiveStatus() {
+        let idle = isLocked ? nil : inputIdleSeconds()
         let status: String
         if isLocked {
             status = "locked"
@@ -127,7 +136,8 @@ final class AppTracker: ObservableObject {
         LiveStatusStore.shared.write(
             status: status,
             bundleId: currentBundleId,
-            appName: currentAppName
+            appName: currentAppName,
+            idleSeconds: idle
         )
     }
 

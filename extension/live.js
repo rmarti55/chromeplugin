@@ -1,13 +1,12 @@
 // Live status for the popup and dashboard.
 //
-// Mac-first when the companion heartbeat is fresh (GET_DESKTOP_LIVE).
-// Red offline when Mac day data exists but capture is down.
-// Falls back to Chrome-only when the native host was never set up.
+// Returns independent Chrome and Mac live rows — Chrome is never replaced by Mac.
 
 import { getCurrentActivity } from "./db.js";
 import { IDLE_SECONDS } from "./constants.js";
 import { LABELS } from "./labels.js";
 import { isChromeApp } from "./desktop-bridge.js";
+import { dmLog, dmWarn, dmOnChange, dmRateLimited } from "./log.js";
 
 const LIVE_FETCH_TIMEOUT_MS = 2000;
 
@@ -20,24 +19,24 @@ function host(u) {
 }
 const isWeb = (u) => !!u && /^https?:\/\//.test(u);
 
-function macOffline(message) {
-  return {
-    status: "offline",
-    message,
-    macHostInstalled: true,
-    macLiveFresh: false,
-  };
-}
-
 async function fetchDesktopLiveFromBackground() {
   if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
     return null;
   }
   return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(null), LIVE_FETCH_TIMEOUT_MS);
+    const timer = setTimeout(() => {
+      dmWarn("live", "fetchDesktopLive.timeout", { ms: LIVE_FETCH_TIMEOUT_MS });
+      resolve(null);
+    }, LIVE_FETCH_TIMEOUT_MS);
     chrome.runtime.sendMessage({ type: "GET_DESKTOP_LIVE" }, (res) => {
       clearTimeout(timer);
-      if (chrome.runtime.lastError || !res?.ok) {
+      if (chrome.runtime.lastError) {
+        dmWarn("live", "fetchDesktopLive.lastError", { err: chrome.runtime.lastError.message });
+        resolve(null);
+        return;
+      }
+      if (!res?.ok) {
+        dmWarn("live", "fetchDesktopLive.badResponse", { ok: res?.ok });
         resolve(null);
         return;
       }
@@ -83,66 +82,127 @@ async function getChromeLiveStatus(now = Date.now()) {
   return { status: "capturing", message: LABELS.inChrome };
 }
 
-function liveFromMacPayload(macLive, chromeLive) {
-  const macMeta = {
-    macHostInstalled: true,
-    macLiveFresh: true,
+function macOfflineStatus(message) {
+  return {
+    status: "offline",
+    message,
+    macLiveFresh: false,
   };
+}
+
+function macIdleMessage(appName) {
+  if (appName) return LABELS.macIdleWithApp(appName);
+  return LABELS.macIdle;
+}
+
+function macFromPayload(macLive) {
   const { status, bundleId, appName } = macLive;
 
   if (status === "locked") {
-    return { status: "paused", reason: "locked", message: LABELS.locked, ...macMeta };
+    return { status: "paused", reason: "locked", message: LABELS.locked, macLiveFresh: true };
   }
   if (status === "idle") {
-    return { status: "idle", reason: "idle", message: LABELS.macIdle, ...macMeta };
+    return {
+      status: "idle",
+      reason: "idle",
+      message: macIdleMessage(appName),
+      appName: appName || undefined,
+      macLiveFresh: true,
+    };
   }
 
   if (isChromeApp(bundleId)) {
-    if (chromeLive.domain) {
-      return {
-        status: "capturing",
-        domain: chromeLive.domain,
-        message: LABELS.usingChrome,
-        macAppName: appName || "Chrome",
-        ...macMeta,
-      };
-    }
-    return { status: "capturing", message: LABELS.inChrome, macAppName: appName || "Chrome", ...macMeta };
+    return {
+      status: "capturing",
+      appName: appName || "Chrome",
+      message: LABELS.inChrome,
+      macLiveFresh: true,
+    };
   }
 
   return {
     status: "capturing",
     appName: appName || bundleId || "",
     message: LABELS.usingMacOn,
-    ...macMeta,
+    macLiveFresh: true,
   };
 }
 
-export async function getLiveStatus(now = Date.now(), { macDayAvailable = false } = {}) {
-  const chromeLive = await getChromeLiveStatus(now);
+async function getMacLiveStatus(macDayAvailable) {
   const macEnvelope = await fetchDesktopLiveFromBackground();
-
   const hostKnown = !!(macEnvelope?.hostInstalled || macDayAvailable);
 
   if (!hostKnown) {
-    return { ...chromeLive, macHostInstalled: false, macLiveFresh: false };
+    dmOnChange("macLive.branch", { branch: "hidden" }, (state) => {
+      dmWarn("live", "macLive.branch", state);
+    });
+    return null;
   }
 
   if (!macEnvelope) {
-    return macOffline(LABELS.macHostBroken);
+    dmOnChange("macLive.branch", { branch: "hostBroken", reason: "envelopeNull" }, (state) => {
+      dmWarn("live", "macLive.branch", state);
+    });
+    return macOfflineStatus(LABELS.macHostBroken);
   }
 
   if (!macEnvelope.hostReachable) {
-    return macOffline(LABELS.macHostBroken);
+    dmOnChange("macLive.branch", { branch: "hostBroken", reason: "notReachable" }, (state) => {
+      dmWarn("live", "macLive.branch", state);
+    });
+    return macOfflineStatus(LABELS.macHostBroken);
   }
 
   const macLive = macEnvelope.data;
 
   if (!macLive?.ok) {
-    return macOffline(LABELS.macOffline);
+    dmOnChange(
+      "macLive.branch",
+      { branch: "appOffline", reason: macLive?.reason || "missing" },
+      (state) => {
+        dmWarn("live", "macLive.branch", state);
+      }
+    );
+    return macOfflineStatus(LABELS.macOffline);
   }
 
-  return liveFromMacPayload(macLive, chromeLive);
+  dmOnChange(
+    "macLive.branch",
+    { branch: "live", status: macLive.status, appName: macLive.appName },
+    (state) => {
+      dmLog("live", "macLive.branch", state);
+    }
+  );
+
+  if (macLive.status === "idle") {
+    dmRateLimited("macLive.idle", 15_000, () => {
+      dmWarn("live", "macLive.idle", {
+        status: macLive.status,
+        appName: macLive.appName,
+        idleSeconds: macLive.idleSeconds,
+        ts: macLive.ts,
+      });
+    });
+  } else if (macLive.status === "capturing") {
+    dmRateLimited("macLive.capturing", 30_000, () => {
+      dmLog("live", "macLive.capturing", {
+        status: macLive.status,
+        appName: macLive.appName,
+        idleSeconds: macLive.idleSeconds,
+        ts: macLive.ts,
+      });
+    });
+  }
+
+  return macFromPayload(macLive);
+}
+
+export async function getLiveStatus(now = Date.now(), { macDayAvailable = false } = {}) {
+  const [chrome, mac] = await Promise.all([
+    getChromeLiveStatus(now),
+    getMacLiveStatus(macDayAvailable),
+  ]);
+  return { chrome, mac };
 }
 
 /** Shared dot color classes for dashboard live indicators. */
@@ -158,16 +218,42 @@ export function livePingClass(status) {
   return "bg-green-500";
 }
 
-export function liveStatusText(live) {
-  if (!live) return "";
-  if (live.status === "offline" || live.status === "paused" || live.status === "idle") {
-    return live.message || LABELS.inBackground;
+export function chromeLiveStatusText(chrome) {
+  if (!chrome) return "";
+  if (chrome.status === "offline" || chrome.status === "paused" || chrome.status === "idle") {
+    return chrome.message || LABELS.inBackground;
   }
-  if (live.domain) return `${LABELS.usingChromeOn} ${live.domain}`;
-  if (live.appName) return `${LABELS.usingMacOn} ${live.appName}`;
-  return live.message || LABELS.inChrome;
+  if (chrome.domain) return `${LABELS.usingChromeOn} ${chrome.domain}`;
+  return chrome.message || LABELS.inChrome;
 }
 
-export function showMacLiveRow(live, macDayAvailable) {
-  return !!(live?.macHostInstalled || macDayAvailable);
+export function macLiveStatusText(mac) {
+  if (!mac) return "";
+  if (mac.status === "offline" || mac.status === "paused" || mac.status === "idle") {
+    return mac.message || LABELS.macOffline;
+  }
+  if (mac.appName) return `${LABELS.usingMacOn} ${mac.appName}`;
+  return mac.message || LABELS.inChrome;
+}
+
+/** @deprecated use chromeLiveStatusText / macLiveStatusText */
+export function liveStatusText(live) {
+  if (live?.chrome) return chromeLiveStatusText(live.chrome);
+  return chromeLiveStatusText(live);
+}
+
+export function showMacLiveRow(mac) {
+  return mac != null;
+}
+
+export function liveRowTextColor(status) {
+  if (status === "offline") return "text-red-300";
+  return "text-slate-300";
+}
+
+export function popupDotClass(status) {
+  if (status === "offline") return "dot offline";
+  if (status === "paused") return "dot paused";
+  if (status === "idle") return "dot idle";
+  return "dot capturing";
 }

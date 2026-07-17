@@ -7,6 +7,7 @@
 // dependencies, so it is imported by both the service worker and the dashboard.
 
 import { computeDomainHints, domainHintsToObject } from "./heuristics.js";
+import { visitKey } from "./siteIdentity.js";
 
 const DB_NAME = "chrome-activity";
 const DB_VERSION = 1;
@@ -259,7 +260,7 @@ export function computeSessions(events, dayStart, dayEnd, now) {
 
   const state = { url: null, domain: null, title: null, counting: false };
   let lastTs = null;
-  let lastVisitUrl = null;
+  let lastVisitKey = null;
   let afterBoundary = false;
 
   const accrue = (untilTs) => {
@@ -275,9 +276,10 @@ export function computeSessions(events, dayStart, dayEnd, now) {
     accrue(ev.ts);
     // Visits = real navigations only (urlchange), not tab switches or focus returns.
     if (ev.type === "urlchange" && ev.url) {
-      if (afterBoundary || ev.url !== lastVisitUrl) {
+      const key = visitKey(ev.url, ev.domain);
+      if (afterBoundary || key !== lastVisitKey) {
         touch(ev.url, ev.domain, ev.title).visits += 1;
-        lastVisitUrl = ev.url;
+        lastVisitKey = key;
         afterBoundary = false;
       }
     }

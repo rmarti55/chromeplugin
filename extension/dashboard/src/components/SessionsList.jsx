@@ -1,6 +1,7 @@
 import { formatDuration } from "../../../db.js";
 import { categorize } from "../../../categorize.js";
 import { HINT_LABELS } from "../../../heuristics.js";
+import { displayLabel, pageContextSubtitle } from "../../../siteIdentity.js";
 import { HistoryReferenceDetails } from "./HistoryReference.jsx";
 import { LABELS } from "../../../labels.js";
 
@@ -32,6 +33,10 @@ function buildUnifiedRows(sessions, alignment, categoryCache) {
       ...row,
       session,
       isHistoryOnly,
+      label: row.isNoiseRollup ? row.label : displayLabel(row.domain, session?.title),
+      pageSubtitle: row.isNoiseRollup
+        ? null
+        : pageContextSubtitle(row.domain, session?.title),
       category: row.isNoiseRollup ? null : categorize(row.domain, categoryCache),
     };
   });
@@ -46,6 +51,19 @@ function buildUnifiedRows(sessions, alignment, categoryCache) {
   return rows;
 }
 
+function SiteSubtitle({ row }) {
+  if (row.isNoiseRollup) {
+    return "Cmd+T / new-tab homepage landings — not real browsing";
+  }
+  return (
+    <>
+      {row.domain}
+      {row.category ? ` · ${row.category}` : ""}
+      {row.pageSubtitle ? ` · ${row.pageSubtitle}` : ""}
+    </>
+  );
+}
+
 function SimpleRow({ row }) {
   const domain = row.domain;
   const label = row.label || row.session?.title || domain;
@@ -55,14 +73,7 @@ function SimpleRow({ row }) {
       <div className="min-w-0 flex-1">
         <div className="text-slate-200 truncate">{label}</div>
         <div className="text-slate-500 text-xs truncate">
-          {row.isNoiseRollup ? (
-            "Cmd+T / new-tab homepage landings — not real browsing"
-          ) : (
-            <>
-              {domain}
-              {row.category ? ` · ${row.category}` : ""}
-            </>
-          )}
+          <SiteSubtitle row={row} />
         </div>
       </div>
       <div className="shrink-0 flex items-center gap-3 text-right tabular-nums">
@@ -120,6 +131,7 @@ function DiagnosticRow({ row, hint, hasHistory }) {
             <>
               {domain}
               {row.category ? ` · ${row.category}` : ""}
+              {row.pageSubtitle ? ` · ${row.pageSubtitle}` : ""}
               {row.mirrorVisits > 0 ? ` · ${row.mirrorVisits} navs` : ""}
             </>
           )}

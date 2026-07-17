@@ -1,5 +1,10 @@
 import { getDayMetrics, aggregateByDomain, formatDuration, toDateStr } from "./db.js";
-import { getLiveStatus, liveStatusText } from "./live.js";
+import {
+  getLiveStatus,
+  chromeLiveStatusText,
+  macLiveStatusText,
+  popupDotClass,
+} from "./live.js";
 import { mergeDesktopWithChrome } from "./desktop-merge.js";
 import { LABELS } from "./labels.js";
 
@@ -30,45 +35,64 @@ function fetchDesktopDay(dateStr) {
   });
 }
 
-async function renderLive() {
-  const dot = $("dot");
-  const text = $("liveText");
+function renderLiveRow(dotEl, textEl, rowEl, row, isMac = false) {
+  textEl.textContent = "";
+  dotEl.className = popupDotClass(row.status);
+  if (rowEl && isMac) {
+    rowEl.classList.toggle("offline", row.status === "offline");
+  }
+
+  if (row.status === "paused" || row.status === "idle" || row.status === "offline") {
+    textEl.appendChild(
+      document.createTextNode(isMac ? macLiveStatusText(row) : chromeLiveStatusText(row))
+    );
+    return;
+  }
+
+  if (!isMac && row.domain) {
+    textEl.appendChild(document.createTextNode(`${LABELS.usingChromeOn} `));
+    const site = document.createElement("span");
+    site.className = "mono";
+    site.textContent = row.domain;
+    textEl.appendChild(site);
+    return;
+  }
+
+  if (isMac && row.appName) {
+    textEl.appendChild(document.createTextNode(`${LABELS.usingMacOn} `));
+    const app = document.createElement("span");
+    app.className = "mono";
+    app.textContent = row.appName;
+    textEl.appendChild(app);
+    return;
+  }
+
+  textEl.appendChild(
+    document.createTextNode(isMac ? macLiveStatusText(row) : chromeLiveStatusText(row))
+  );
+}
+
+async function renderLive(macDayAvailable = false) {
+  const chromeDot = $("chromeDot");
+  const chromeText = $("chromeLiveText");
+  const macRow = $("macLiveRow");
+  const macDot = $("macDot");
+  const macText = $("macLiveText");
+
   try {
-    const date = todayStr();
-    const desktopRaw = await fetchDesktopDay(date);
-    const macDayAvailable = !!(desktopRaw?.apps?.length);
-    const a = await getLiveStatus(Date.now(), { macDayAvailable });
-    text.textContent = "";
-    if (a.status === "offline") {
-      dot.className = "dot offline";
-      text.appendChild(document.createTextNode(a.message || LABELS.macOffline));
-    } else if (a.status === "paused") {
-      dot.className = "dot paused";
-      text.appendChild(document.createTextNode(a.message || LABELS.inBackground));
-    } else if (a.status === "idle") {
-      dot.className = "dot idle";
-      text.appendChild(document.createTextNode(a.message || LABELS.idle));
-    } else if (a.domain) {
-      dot.className = "dot capturing";
-      text.appendChild(document.createTextNode(`${LABELS.usingChromeOn} `));
-      const site = document.createElement("span");
-      site.className = "mono";
-      site.textContent = a.domain;
-      text.appendChild(site);
-    } else if (a.appName) {
-      dot.className = "dot capturing";
-      text.appendChild(document.createTextNode(`${LABELS.usingMacOn} `));
-      const app = document.createElement("span");
-      app.className = "mono";
-      app.textContent = a.appName;
-      text.appendChild(app);
+    const { chrome, mac } = await getLiveStatus(Date.now(), { macDayAvailable });
+    renderLiveRow(chromeDot, chromeText, null, chrome, false);
+
+    if (mac) {
+      macRow.hidden = false;
+      renderLiveRow(macDot, macText, macRow, mac, true);
     } else {
-      dot.className = "dot capturing";
-      text.appendChild(document.createTextNode(liveStatusText(a) || LABELS.inChrome));
+      macRow.hidden = true;
     }
   } catch {
-    dot.className = "dot capturing";
-    text.textContent = LABELS.inChrome;
+    chromeDot.className = "dot capturing";
+    chromeText.textContent = LABELS.inChrome;
+    macRow.hidden = true;
   }
 }
 
@@ -79,12 +103,12 @@ function appendStrong(parent, text) {
   return el;
 }
 
-async function renderStats() {
+async function renderStats(desktopRaw) {
   const el = $("stats");
   try {
     const date = todayStr();
     const now = Date.now();
-    const [metrics, desktopRaw] = await Promise.all([getDayMetrics(date, now), fetchDesktopDay(date)]);
+    const metrics = await getDayMetrics(date, now);
     const desktop = mergeDesktopWithChrome(metrics, desktopRaw);
     const { openSeconds, activeSeconds, sessions } = metrics;
 
@@ -132,9 +156,12 @@ async function renderStats() {
   }
 }
 
-function tick() {
-  renderLive();
-  renderStats();
+async function tick() {
+  const date = todayStr();
+  const desktopRaw = await fetchDesktopDay(date);
+  const macDayAvailable = !!(desktopRaw?.apps?.length);
+  await renderLive(macDayAvailable);
+  await renderStats(desktopRaw);
 }
 
 document.addEventListener("DOMContentLoaded", () => {

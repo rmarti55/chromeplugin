@@ -10,7 +10,7 @@ enum MirrorConstants {
     /// Match extension/constants.js — 5 minutes
     static let idleSeconds: TimeInterval = 300
     static let maxGapSeconds: TimeInterval = 30 * 60
-    static let idlePollInterval: TimeInterval = 30
+    static let idlePollInterval: TimeInterval = 10
     static let retentionDays = 120
     static let chromeBundleIds: Set<String> = [
         "com.google.Chrome",

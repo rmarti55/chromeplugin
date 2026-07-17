@@ -1,6 +1,8 @@
 // Chrome ↔ macOS companion bridge via native messaging.
 // Requires install: macos/Scripts/install-native-host.sh
 
+import { dmLog, dmWarn, dmError, errMsg } from "./log.js";
+
 const NATIVE_HOST = "com.dailymirror.companion";
 
 export const CHROME_BUNDLE_IDS = new Set([
@@ -25,14 +27,25 @@ const NATIVE_TIMEOUT_MS = 2000;
 const NATIVE_SUMMARIZE_TIMEOUT_MS = 5000;
 
 export function nativeRequest(message, timeoutMs = NATIVE_TIMEOUT_MS) {
+  const reqType = message?.type || "unknown";
+  const start = performance.now();
+
   return new Promise((resolve, reject) => {
     let port;
     try {
       port = connectNative();
     } catch (err) {
+      dmError("bridge", "nativeRequest.connect", {
+        type: reqType,
+        ok: false,
+        ms: Math.round(performance.now() - start),
+        err: errMsg(err),
+      });
       reject(err);
       return;
     }
+
+    dmLog("bridge", "nativeRequest.start", { type: reqType, timeoutMs });
 
     let settled = false;
     const timer = setTimeout(() => {
@@ -51,15 +64,25 @@ export function nativeRequest(message, timeoutMs = NATIVE_TIMEOUT_MS) {
       fn(value);
     };
 
+    const finishWithLog = (fn, value) => {
+      const ms = Math.round(performance.now() - start);
+      if (fn === resolve) {
+        dmLog("bridge", "nativeRequest.ok", { type: reqType, ok: true, ms });
+      } else {
+        dmError("bridge", "nativeRequest.fail", { type: reqType, ok: false, ms, err: errMsg(value) });
+      }
+      finish(fn, value);
+    };
+
     port.onMessage.addListener((msg) => {
-      if (msg?.error) finish(reject, new Error(msg.error));
-      else finish(resolve, msg);
+      if (msg?.error) finishWithLog(reject, new Error(msg.error));
+      else finishWithLog(resolve, msg);
     });
 
     port.onDisconnect.addListener(() => {
       if (settled) return;
       const err = chrome.runtime.lastError?.message || "Native host disconnected";
-      finish(reject, new Error(err));
+      finishWithLog(reject, new Error(err));
     });
 
     port.postMessage(message);
@@ -75,6 +98,10 @@ export async function getDesktopDayMetricsForSummarize(dateStr) {
   try {
     return await getDesktopDayMetrics(dateStr, NATIVE_SUMMARIZE_TIMEOUT_MS);
   } catch (firstErr) {
+    dmWarn("bridge", "getDesktopDayMetricsForSummarize.retry", {
+      date: dateStr,
+      err: errMsg(firstErr),
+    });
     try {
       return await getDesktopDayMetrics(dateStr, NATIVE_SUMMARIZE_TIMEOUT_MS);
     } catch {

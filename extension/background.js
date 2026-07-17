@@ -19,6 +19,7 @@ import { refreshHistoryCacheForDate } from "./history.js";
 import { IDLE_SECONDS } from "./constants.js";
 import { getDesktopDayMetrics, getDesktopLiveStatus } from "./desktop-bridge.js";
 import { mergeDesktopWithChrome } from "./desktop-merge.js";
+import { dmLog, dmWarn, dmError, dmOnChange, dmRateLimited, errMsg } from "./log.js";
 
 const MIN_ACTIVITY_SECONDS = 120; // 2 min before auto-summary runs
 const RETENTION_DAYS = 120;
@@ -177,8 +178,14 @@ async function maybeAutoSummarize() {
     "apiKey",
     "autoSummaryHourly",
   ]);
-  if (!apiKey) return;
-  if (autoSummaryHourly === false) return;
+  if (!apiKey) {
+    dmLog("sw", "autoSummarize.skip", { reason: "noApiKey" });
+    return;
+  }
+  if (autoSummaryHourly === false) {
+    dmLog("sw", "autoSummarize.skip", { reason: "disabled" });
+    return;
+  }
 
   const now = Date.now();
   const dateStr = toDateStr(now);
@@ -189,8 +196,8 @@ async function maybeAutoSummarize() {
   try {
     const desktopRaw = await getDesktopDayMetrics(dateStr);
     desktopMerge = mergeDesktopWithChrome(metrics, desktopRaw);
-  } catch {
-    /* companion optional for auto-summarize */
+  } catch (err) {
+    dmWarn("sw", "autoSummarize.desktopOptional", { date: dateStr, err: errMsg(err) });
   }
 
   const devicePresence = desktopMerge.devicePresenceSeconds || 0;
@@ -202,6 +209,12 @@ async function maybeAutoSummarize() {
     openSeconds < MIN_ACTIVITY_SECONDS &&
     devicePresence < MIN_ACTIVITY_SECONDS
   ) {
+    dmLog("sw", "autoSummarize.skip", {
+      reason: "lowActivity",
+      activeSeconds,
+      openSeconds,
+      devicePresence,
+    });
     return;
   }
 
@@ -217,13 +230,16 @@ async function maybeAutoSummarize() {
 
   const existing = await getAnalysis(dateStr);
   if (existing?.activityFingerprint && fingerprintsMatch(existing.activityFingerprint, current)) {
+    dmLog("sw", "autoSummarize.skip", { reason: "fingerprintMatch", date: dateStr });
     return;
   }
 
   try {
+    dmLog("sw", "autoSummarize.run", { date: dateStr, desktopAppCount });
     await analyzeDay(dateStr);
-  } catch {
-    // best-effort; the user can always summarize manually from the popup
+    dmLog("sw", "autoSummarize.ok", { date: dateStr });
+  } catch (err) {
+    dmWarn("sw", "autoSummarize.fail", { date: dateStr, err: errMsg(err) });
   }
 }
 
@@ -240,7 +256,20 @@ let desktopLiveCache = {
   data: null,
 };
 
+function liveCacheSnapshot() {
+  return {
+    hostInstalled: desktopLiveCache.hostInstalled,
+    hostReachable: desktopLiveCache.hostReachable,
+    dataOk: desktopLiveCache.data?.ok ?? null,
+    dataReason: desktopLiveCache.data?.reason ?? null,
+    dataStatus: desktopLiveCache.data?.status ?? null,
+    idleSeconds: desktopLiveCache.data?.idleSeconds ?? null,
+    appName: desktopLiveCache.data?.appName ?? null,
+  };
+}
+
 async function refreshDesktopLiveCache() {
+  const start = performance.now();
   try {
     const data = await getDesktopLiveStatus();
     desktopHostKnown = true;
@@ -250,13 +279,24 @@ async function refreshDesktopLiveCache() {
       hostReachable: true,
       data,
     };
-  } catch {
+    const ms = Math.round(performance.now() - start);
+    dmOnChange("liveCache", liveCacheSnapshot(), (state) => {
+      dmLog("sw", "liveCache.update", { ok: true, ms, ...state });
+    });
+    dmRateLimited("liveCache.ok", 30_000, () => {
+      dmLog("sw", "liveCache.poll", { ok: true, ms, ...liveCacheSnapshot() });
+    });
+  } catch (err) {
     desktopLiveCache = {
       fetchedAt: Date.now(),
       hostInstalled: desktopHostKnown,
       hostReachable: false,
       data: desktopLiveCache.data,
     };
+    const ms = Math.round(performance.now() - start);
+    dmOnChange("liveCache", liveCacheSnapshot(), (state) => {
+      dmError("sw", "liveCache.update", { ok: false, ms, err: errMsg(err), ...state });
+    });
   }
 }
 
@@ -279,9 +319,22 @@ startDesktopLivePolling.started = false;
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "ANALYZE_DAY") {
+    dmLog("sw", "message.ANALYZE_DAY", {
+      date: message.date,
+      hasDesktopPayload: !!(message.desktopPayload?.apps?.length),
+    });
     analyzeDay(message.date, { desktopPayload: message.desktopPayload ?? null })
-      .then((analysis) => sendResponse({ ok: true, analysis }))
-      .catch((err) => sendResponse({ ok: false, error: err.message }));
+      .then((analysis) => {
+        dmLog("sw", "message.ANALYZE_DAY.ok", {
+          date: message.date,
+          includedDesktop: analysis.includedDesktop,
+        });
+        sendResponse({ ok: true, analysis });
+      })
+      .catch((err) => {
+        dmError("sw", "message.ANALYZE_DAY.fail", { date: message.date, err: errMsg(err) });
+        sendResponse({ ok: false, error: err.message });
+      });
     return true; // async
   }
   if (message.type === "CLEAR_BADGE") {
@@ -290,20 +343,57 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return false;
   }
   if (message.type === "GET_DESKTOP_DAY") {
+    const start = performance.now();
     getDesktopDayMetrics(message.date)
       .then((data) => {
         markDesktopHostKnown();
+        dmLog("sw", "message.GET_DESKTOP_DAY.ok", {
+          date: message.date,
+          ms: Math.round(performance.now() - start),
+          appCount: data?.apps?.length ?? 0,
+        });
         sendResponse({ ok: true, data });
       })
-      .catch((err) => sendResponse({ ok: false, error: err.message }));
+      .catch((err) => {
+        dmError("sw", "message.GET_DESKTOP_DAY.fail", {
+          date: message.date,
+          ms: Math.round(performance.now() - start),
+          err: errMsg(err),
+        });
+        sendResponse({ ok: false, error: err.message });
+      });
     return true;
   }
   if (message.type === "GET_DESKTOP_LIVE") {
-    if (Date.now() - desktopLiveCache.fetchedAt > DESKTOP_LIVE_REFRESH_MS) {
+    const cacheAge = Date.now() - desktopLiveCache.fetchedAt;
+    const stale = cacheAge > DESKTOP_LIVE_REFRESH_MS;
+    if (stale) {
       refreshDesktopLiveCache()
-        .then(() => sendResponse({ ok: true, ...desktopLiveCache }))
-        .catch(() => sendResponse({ ok: true, ...desktopLiveCache }));
+        .then(() => {
+          dmLog("sw", "message.GET_DESKTOP_LIVE", {
+            refreshed: true,
+            cacheAgeMs: cacheAge,
+            ...liveCacheSnapshot(),
+          });
+          sendResponse({ ok: true, ...desktopLiveCache });
+        })
+        .catch((err) => {
+          dmWarn("sw", "message.GET_DESKTOP_LIVE.stale", {
+            refreshed: false,
+            cacheAgeMs: cacheAge,
+            err: errMsg(err),
+            ...liveCacheSnapshot(),
+          });
+          sendResponse({ ok: true, ...desktopLiveCache });
+        });
     } else {
+      dmRateLimited("message.GET_DESKTOP_LIVE.cached", 10_000, () => {
+        dmLog("sw", "message.GET_DESKTOP_LIVE", {
+          refreshed: false,
+          cacheAgeMs: cacheAge,
+          ...liveCacheSnapshot(),
+        });
+      });
       sendResponse({ ok: true, ...desktopLiveCache });
     }
     return true;

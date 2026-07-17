@@ -19,6 +19,8 @@ import {
   buildDesktopSummaryForAI,
   buildTimelineSummaryForAI,
 } from "./desktop-merge.js";
+import { displayLabel } from "./siteIdentity.js";
+import { dmLog, dmWarn, dmError, errMsg } from "./log.js";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -45,7 +47,7 @@ function buildDomainSummary(entries, domainHints = {}) {
         hint?.automationHint && hint.automationHint !== "none" && hint.hintNote
           ? `\n  Pattern: ${hint.hintNote}`
           : "";
-      return `- ${domain}: ${Math.round(d.minutes)} min\n  Pages: ${d.titles.join(", ")}${hintLine}`;
+      return `- ${displayLabel(domain, domain)}: ${Math.round(d.minutes)} min\n  Pages: ${d.titles.join(", ")}${hintLine}`;
     })
     .join("\n");
 }
@@ -75,7 +77,7 @@ function buildHistoryContext(metrics, history, hasDesktop = false) {
           ? "History est. dwell >> Mirror"
           : "visit count mismatch";
     const titles = m.titles.length ? `\n    Pages: ${m.titles.join("; ")}` : "";
-    return `- ${m.domain}: ${kind}; History ${m.historyVisits} visits (est. ${m.historyDwellMinutes}m), Mirror ${m.mirrorVisits} navs / ${m.mirrorActiveMinutes}m${titles}`;
+    return `- ${displayLabel(m.domain, m.domain)}: ${kind}; History ${m.historyVisits} visits (est. ${m.historyDwellMinutes}m), Mirror ${m.mirrorVisits} navs / ${m.mirrorActiveMinutes}m${titles}`;
   });
 
   return `\n${aggregate}\nTop History/Mirror gaps (context only — never as minute totals):\n${lines.join("\n")}`;
@@ -85,21 +87,11 @@ function buildPrompt(
   date,
   domainSummary,
   activeMinutes,
-  goalText,
   historyContext = "",
   desktopMerge = null,
   strictMac = false,
   timelineContext = ""
 ) {
-  const goalBlock = goalText
-    ? `\nThe person wrote down what they were trying to do:\n"${goalText}"\n`
-    : "";
-  const goalRule = goalText
-    ? hasDesktopRule(desktopMerge)
-      ? `- "goalAssessment": one honest sentence comparing the stated goal to how the time was actually spent across the Mac day and Chrome browsing (name specific apps, sites, and minutes).`
-      : `- "goalAssessment": one honest sentence comparing the stated goal to how the time was actually spent (name specific sites, apps, and minutes).`
-    : `- "goalAssessment": null (no goal was set).`;
-
   const hasDesktop = desktopMerge?.available;
   const desktopContext = hasDesktop ? buildDesktopSummaryForAI(desktopMerge) : "";
 
@@ -120,36 +112,30 @@ Chrome browsing time for categories/themes: ${activeMinutes} min`;
     : "You are a calm, honest mirror for how someone spent their day online.";
 
   const macCriticalRule = hasDesktop
-    ? `- CRITICAL: The first sentence of "summary" MUST name what dominated the Mac day — specific apps and approximate minutes (e.g. "Mostly Slack (~35m) and Cursor (~20m)…"). If only Chrome appears above, say so explicitly. Do NOT open with clock totals, dual-clock pairs, or phrases like "On your Mac", "in front", or "in use".`
+    ? `- CRITICAL: Name what dominated the Mac day — specific apps and approximate minutes (e.g. "Mostly Slack (~35m) and Cursor (~20m)…"). If only Chrome appears above, say so explicitly. Do NOT use clock totals, dual-clock pairs, or phrases like "On your Mac", "in front", or "in use".`
     : "";
 
   const strictBlock = strictMac
-    ? `\nREWRITE REQUIRED: Your previous response omitted Mac companion apps. The summary MUST lead with named desktop apps and minutes (or state only Chrome was used).\n`
+    ? `\nREWRITE REQUIRED: Your previous response omitted Mac companion apps. The summary MUST name desktop apps and minutes (or state only Chrome was used).\n`
     : "";
 
   const leadRule = hasDesktop
-    ? `- Lead the summary with what the person actually did on the Mac (named apps + minutes), then Chrome browsing themes/sites. Cover Mac + Chrome — never Chrome alone. Never lead with dual-clock totals.`
-    : `- Lead with what the person did in the browser — sites, themes, and minutes — never navigation or visit counts from Mirror.`;
+    ? `- The summary must cover Mac apps and Chrome browsing — named apps/sites with minutes. Never Chrome alone when Mac apps exist. Never lead with dual-clock totals.`
+    : `- Name top sites and minutes — never navigation or visit counts from Mirror.`;
 
-  const observationRule = `- "observation" must be one concrete insight about the day itself: dominant apps/sites, themes, morning vs afternoon shifts, goal drift, or how attention was split. Prefer specifics with names and rough minutes.
-- NEVER comment on measurement quirks: no "in front" vs "in use", no idle vs input, no "apps left open", no passive reading as a tracker artifact, no explaining how clocks work. The dashboard already shows those totals.`;
-
-  const clockBanRule = `- CRITICAL: In "summary" and "observation", never use the phrases "in front", "in use", "On your Mac: … min", "Using your Mac", "left open without input", or compare two time clocks. Tell the story of the day, not the trackers.`;
+  const clockBanRule = `- CRITICAL: In "summary", never use the phrases "in front", "in use", "On your Mac: … min", "Using your Mac", "left open without input", or compare two time clocks. Tell what they did, not how tracking works.`;
 
   const historyRule = hasDesktop
-    ? `- Chrome History is reference only for browsing blind spots — do not let History gaps dominate the summary or observation when Mac app data is present.`
+    ? `- Chrome History is reference only for browsing blind spots — do not let History gaps dominate the summary when Mac app data is present.`
     : `- If Chrome History reference is provided, treat visit counts and gap-estimated dwell as context only — mention History-only or misaligned sites when relevant, never replace Mirror minutes.`;
 
   return `${strictBlock}${opener} This is for the person themselves — not a manager. Be specific and kind but do not flatter.
 
 ${activityBlock}
 ${timelineContext}${historyContext}
-${goalBlock}
 Respond with ONLY valid JSON in this exact format:
 {
-  "summary": "A 3-4 sentence narrative of how the day was spent, in second person ('you'). Lead with what they did — apps, sites, themes — not clock jargon.",
-  "observation": "One honest, non-judgmental observation about a real pattern in the day (not measurement).",
-  "goalAssessment": "see rule below",
+  "summary": "1-2 short sentences in second person ('you'). Name top apps/sites with rough minutes. Plain and direct.",
   "categories": [ { "name": "Category Name", "minutes": 120, "percentage": 30 } ],
   "themes": [ { "name": "Theme description", "sites": ["domain1.com"], "minutes": 60 } ],
   "siteCategories": [ { "domain": "domain1.com", "category": "Category Name" } ]
@@ -160,20 +146,15 @@ ${leadRule}
 ${macCriticalRule}
 ${clockBanRule}
 ${historyRule}
+- "summary" must be exactly 1-2 sentences — no observation, no goal comparison, no automation commentary unless it is the dominant activity.
 - Category and theme minutes must reflect Chrome browsing time only and sum to ${activeMinutes}.
 - When Mac data is present, mention desktop apps by name and minutes in the summary; do not fold desktop minutes into categories or themes.
-${observationRule}
-- If a domain has a "Pattern:" note, mention possible testing, automation, or rapid lookups — never claim Claude, Codex, or Cursor initiated activity unless the person simply visited that product's website.
+- If a domain has a "Pattern:" note, you may briefly note rapid lookups in the summary only if it was a major part of the day.
 - Categories are broad ("Software Development", "Social Media", "Entertainment", "Research", "Communication", "Shopping", "News", "Productivity", "Finance", "Health", "Education", "Travel").
 - Themes are specific clusters ("Learning React hooks", "Job searching").
 - Percentages must sum to 100.
 - "siteCategories" MUST include EVERY domain listed above, each mapped to its best-fit concrete category.
-- CRITICAL: never use "Other", "Unknown", "Uncategorized", "Miscellaneous", "Misc", "N/A", or an empty value anywhere. For anything ambiguous, choose the closest real category. Every name and category must be a specific, human-meaningful label.
-${goalRule}`;
-}
-
-function hasDesktopRule(desktopMerge) {
-  return desktopMerge?.available;
+- CRITICAL: never use "Other", "Unknown", "Uncategorized", "Miscellaneous", "Misc", "N/A", or an empty value anywhere. For anything ambiguous, choose the closest real category. Every name and category must be a specific, human-meaningful label.`;
 }
 
 function validateMacSummary(summary, desktopMerge) {
@@ -213,18 +194,34 @@ function buildMacSummaryPrefix(desktopMerge) {
 
 async function resolveDesktopPayload(dateStr, desktopPayload) {
   if (desktopPayload?.apps?.length) {
+    dmLog("ai", "resolveDesktopPayload.cached", {
+      date: dateStr,
+      appCount: desktopPayload.apps.length,
+    });
     return { payload: desktopPayload, fetchError: null };
   }
 
+  const start = performance.now();
   try {
     const payload = await getDesktopDayMetricsForSummarize(dateStr);
+    dmLog("ai", "resolveDesktopPayload.ok", {
+      date: dateStr,
+      ms: Math.round(performance.now() - start),
+      appCount: payload?.apps?.length ?? 0,
+    });
     return { payload, fetchError: null };
   } catch (err) {
+    dmWarn("ai", "resolveDesktopPayload.fail", {
+      date: dateStr,
+      ms: Math.round(performance.now() - start),
+      err: errMsg(err),
+    });
     return { payload: null, fetchError: err?.message || "Native host unavailable" };
   }
 }
 
 async function callModel(apiKey, prompt) {
+  const start = performance.now();
   const response = await fetch(OPENROUTER_API_URL, {
     method: "POST",
     headers: {
@@ -240,14 +237,27 @@ async function callModel(apiKey, prompt) {
     }),
   });
 
+  const ms = Math.round(performance.now() - start);
+
   if (!response.ok) {
     const err = await response.text();
+    dmError("ai", "callModel.fail", { ms, status: response.status, err: err.slice(0, 200) });
     throw new Error(`OpenRouter error ${response.status}: ${err}`);
   }
 
   const data = await response.json();
   const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error("Empty response from the AI model.");
+  if (!content) {
+    dmError("ai", "callModel.empty", { ms });
+    throw new Error("Empty response from the AI model.");
+  }
+
+  dmLog("ai", "callModel.ok", {
+    ms,
+    model: DEFAULT_MODEL,
+    promptTokens: data.usage?.prompt_tokens,
+    completionTokens: data.usage?.completion_tokens,
+  });
 
   return { parsed: normalize(extractJson(content)), usage: data.usage || null };
 }
@@ -291,8 +301,8 @@ function normalize(parsed) {
 
   return {
     summary: typeof parsed.summary === "string" ? parsed.summary : "",
-    observation: typeof parsed.observation === "string" ? parsed.observation : "",
-    goalAssessment: typeof parsed.goalAssessment === "string" ? parsed.goalAssessment : null,
+    observation: "",
+    goalAssessment: null,
     categories,
     themes,
     domainCategories,
@@ -300,17 +310,30 @@ function normalize(parsed) {
 }
 
 export async function analyzeDay(dateStr, options = {}) {
-  const { apiKey, goals } = await getSettings();
+  const overallStart = performance.now();
+  dmLog("ai", "analyzeDay.start", { date: dateStr });
+
+  const { apiKey } = await getSettings();
   if (!apiKey) {
     throw new Error("No API key set. Add your OpenRouter key in the extension popup.");
   }
 
   const now = Date.now();
+  const metricsStart = performance.now();
   const [metrics, history, desktopResolved] = await Promise.all([
     getDayMetrics(dateStr, now),
-    getHistoryForDay(dateStr, now).catch(() => ({ available: false })),
+    getHistoryForDay(dateStr, now).catch((err) => {
+      dmWarn("ai", "analyzeDay.historyFail", { date: dateStr, err: errMsg(err) });
+      return { available: false };
+    }),
     resolveDesktopPayload(dateStr, options.desktopPayload),
   ]);
+  dmLog("ai", "analyzeDay.dataLoaded", {
+    date: dateStr,
+    ms: Math.round(performance.now() - metricsStart),
+    sessionCount: metrics.sessions?.length ?? 0,
+    historyAvailable: history?.available ?? false,
+  });
 
   const desktopRaw = desktopResolved.payload;
   const desktopMerge = mergeDesktopWithChrome(metrics, desktopRaw);
@@ -320,6 +343,13 @@ export async function analyzeDay(dateStr, options = {}) {
 
   const { sessions, domainHints, activeSeconds, openSeconds } = metrics;
   const hasDesktop = desktopMerge?.available;
+  dmLog("ai", "analyzeDay.desktop", {
+    date: dateStr,
+    includedDesktop: hasDesktop,
+    desktopAppCount: (desktopMerge.otherApps?.length || 0) + (desktopMerge.chromeApp ? 1 : 0),
+    fetchError: desktopResolved.fetchError,
+  });
+
   if (!sessions.length && openSeconds === 0 && !hasDesktop) {
     throw new Error("No tracked activity for this day yet.");
   }
@@ -331,7 +361,6 @@ export async function analyzeDay(dateStr, options = {}) {
   const deviceActiveMinutes = Math.round((desktopMerge.deviceActiveSeconds || 0) / 60);
   const desktopAppCount = (desktopMerge.otherApps || []).length + (desktopMerge.chromeApp ? 1 : 0);
   const lastEventTs = await getLastEventTsInDay(dateStr, now);
-  const goalText = (goals || "").trim();
   const domainSummary = buildDomainSummary(entries, domainHints);
   const historyContext = buildHistoryContext(metrics, history, hasDesktop);
   const timelineForAI = hasDesktop
@@ -343,7 +372,6 @@ export async function analyzeDay(dateStr, options = {}) {
     dateStr,
     domainSummary,
     activeMinutes,
-    goalText,
     historyContext,
     desktopMerge,
     false,
@@ -353,11 +381,11 @@ export async function analyzeDay(dateStr, options = {}) {
   let { parsed, usage } = await callModel(apiKey, prompt);
 
   if (hasDesktop && !validateMacSummary(parsed.summary, desktopMerge)) {
+    dmWarn("ai", "analyzeDay.macRewrite", { date: dateStr, reason: "summaryMissingApps" });
     const retryPrompt = buildPrompt(
       dateStr,
       domainSummary,
       activeMinutes,
-      goalText,
       historyContext,
       desktopMerge,
       true,
@@ -369,6 +397,7 @@ export async function analyzeDay(dateStr, options = {}) {
   }
 
   if (hasDesktop && !validateMacSummary(parsed.summary, desktopMerge)) {
+    dmWarn("ai", "analyzeDay.macPrefix", { date: dateStr, reason: "rewriteStillMissingApps" });
     parsed.summary = buildMacSummaryPrefix(desktopMerge) + parsed.summary;
   }
 
@@ -379,7 +408,6 @@ export async function analyzeDay(dateStr, options = {}) {
   const analysis = {
     date: dateStr,
     ...parsed,
-    goalText,
     topDomains: aggregateByDomain(sessions, domainHints).slice(0, 10),
     activeMinutes,
     openMinutes,
@@ -402,5 +430,11 @@ export async function analyzeDay(dateStr, options = {}) {
   };
 
   await saveAnalysis(analysis);
+  dmLog("ai", "analyzeDay.ok", {
+    date: dateStr,
+    ms: Math.round(performance.now() - overallStart),
+    includedDesktop: hasDesktop,
+    activeMinutes,
+  });
   return analysis;
 }

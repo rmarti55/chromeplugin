@@ -6,6 +6,7 @@ struct LiveStatusSnapshot: Codable {
     var bundleId: String?
     var appName: String?
     var version: String
+    var idleSeconds: Double?
 }
 
 final class LiveStatusStore {
@@ -25,13 +26,14 @@ final class LiveStatusStore {
         fileURL = dir.appendingPathComponent("live.json")
     }
 
-    func write(status: String, bundleId: String?, appName: String?) {
+    func write(status: String, bundleId: String?, appName: String?, idleSeconds: Double? = nil) {
         let snapshot = LiveStatusSnapshot(
             ts: Int64(Date().timeIntervalSince1970 * 1000),
             status: status,
             bundleId: bundleId,
             appName: appName,
-            version: Self.companionVersion
+            version: Self.companionVersion,
+            idleSeconds: idleSeconds
         )
         queue.sync {
             guard let data = try? JSONEncoder().encode(snapshot) else { return }
@@ -50,7 +52,7 @@ final class LiveStatusStore {
     }
 
     private static func livePayload(from snapshot: LiveStatusSnapshot) -> [String: Any] {
-        [
+        var payload: [String: Any] = [
             "ok": true,
             "status": snapshot.status,
             "bundleId": snapshot.bundleId as Any,
@@ -58,6 +60,10 @@ final class LiveStatusStore {
             "ts": snapshot.ts,
             "version": snapshot.version,
         ]
+        if let idleSeconds = snapshot.idleSeconds {
+            payload["idleSeconds"] = idleSeconds
+        }
+        return payload
     }
 
     private static func statusFromEvent(_ event: MirrorEvent) -> String {

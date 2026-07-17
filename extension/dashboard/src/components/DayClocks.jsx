@@ -1,48 +1,14 @@
 import { formatDuration } from "../../../db.js";
 import { LABELS } from "../../../labels.js";
-import { liveDotClass, livePingClass, liveStatusText, showMacLiveRow } from "../../../live.js";
-
-function LiveDot({ status }) {
-  const offline = status === "offline";
-  const paused = status === "paused";
-  const showPing = !offline && !paused;
-  return (
-    <span className="relative inline-flex h-2 w-2 shrink-0">
-      {showPing && (
-        <span
-          className={`absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping ${livePingClass(status)}`}
-        />
-      )}
-      <span className={`relative inline-flex rounded-full h-2 w-2 ${liveDotClass(status)}`} />
-    </span>
-  );
-}
-
-function MacLiveLine({ live, macDayAvailable }) {
-  if (!showMacLiveRow(live, macDayAvailable)) return null;
-
-  const text = liveStatusText(live);
-  const offline = live?.status === "offline";
-
-  return (
-    <div className={`flex items-center justify-end gap-1.5 text-xs ${offline ? "text-red-400" : "text-slate-400"}`}>
-      <LiveDot status={live?.status || "offline"} />
-      <span className="truncate max-w-[220px]" title={text}>
-        {text}
-      </span>
-    </div>
-  );
-}
 
 /** Mac-first day clocks when companion is connected; Chrome-only otherwise. */
-export function DayClocks({ openSeconds, activeSeconds, desktop, layout = "stack", live }) {
+export function DayClocks({ openSeconds, activeSeconds, desktop, layout = "stack" }) {
   const showMac = desktop?.available;
 
   if (showMac) {
     return (
       <div className={layout === "inline" ? "space-y-1 text-right" : "space-y-2 text-right shrink-0"}>
         <div className="space-y-1" title={`${LABELS.tipOnMac} ${LABELS.tipUsingMac}`}>
-          <MacLiveLine live={live} macDayAvailable={showMac} />
           <div className="tabular-nums">
             <span className="text-indigo-400 font-semibold text-sm">
               {formatDuration(desktop.devicePresenceSeconds || 0)}

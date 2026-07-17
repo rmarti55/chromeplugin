@@ -19,6 +19,7 @@ import { SessionsList } from "./components/SessionsList.jsx";
 import { LiveStatus } from "./components/LiveStatus.jsx";
 import { DesktopApps } from "./components/DesktopApps.jsx";
 import { Settings } from "./components/Settings.jsx";
+import { dmLog, dmWarn, dmError, dmOnChange } from "../../log.js";
 
 const todayStr = () => toDateStr(Date.now());
 const hasChrome = typeof chrome !== "undefined" && chrome.runtime;
@@ -47,19 +48,35 @@ function useDayData(date, cache) {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    const start = performance.now();
     const now = Date.now();
     const [metrics, analysis, history, desktopRaw] = await Promise.all([
       getDayMetrics(date, now),
       getAnalysis(date),
-      getHistoryForDay(date, now).catch(() => ({
-        domains: [],
-        historyVisitCount: 0,
-        historyDomainCount: 0,
-        available: false,
-      })),
+      getHistoryForDay(date, now).catch((err) => {
+        dmWarn("dashboard", "dayLoad.historyFail", { date, err: err?.message || String(err) });
+        return {
+          domains: [],
+          historyVisitCount: 0,
+          historyDomainCount: 0,
+          available: false,
+        };
+      }),
       fetchDesktopDay(date),
     ]);
     const desktop = mergeDesktopWithChrome(metrics, desktopRaw);
+    const ms = Math.round(performance.now() - start);
+    dmLog("dashboard", "dayLoad.ok", {
+      date,
+      ms,
+      sessionCount: metrics.sessions?.length ?? 0,
+      desktopAvailable: desktop.available,
+      desktopAppCount: desktop.otherApps?.length ?? 0,
+      hasAnalysis: !!analysis,
+    });
+    dmOnChange(`dayLoad.desktop.${date}`, { available: desktop.available }, (state) => {
+      dmLog("dashboard", "dayLoad.desktopFlip", { date, ...state });
+    });
     const { sessions, topDomains, timeline, domainHints, activeSeconds, openSeconds } = metrics;
     const historyAlignment = compareDayToHistory(metrics, history);
     const chromeCategories =
@@ -132,15 +149,37 @@ export default function App() {
     setMsg(null);
     let desktopPayload = data?.desktopRaw ?? null;
     if (!desktopPayload?.apps?.length) {
+      dmLog("dashboard", "summarize.refetchDesktop", { date });
       desktopPayload = await fetchDesktopDay(date);
     }
+    dmLog("dashboard", "summarize.start", {
+      date,
+      hasDesktopPayload: !!(desktopPayload?.apps?.length),
+    });
+    const start = performance.now();
     chrome.runtime.sendMessage(
       { type: "ANALYZE_DAY", date, desktopPayload },
       (res) => {
+        const ms = Math.round(performance.now() - start);
         setSummarizing(false);
-        if (chrome.runtime.lastError) setMsg(chrome.runtime.lastError.message);
-        else if (res && res.ok) reload();
-        else setMsg(res?.error || "Something went wrong.");
+        if (chrome.runtime.lastError) {
+          dmError("dashboard", "summarize.fail", {
+            date,
+            ms,
+            err: chrome.runtime.lastError.message,
+          });
+          setMsg(chrome.runtime.lastError.message);
+        } else if (res && res.ok) {
+          dmLog("dashboard", "summarize.ok", {
+            date,
+            ms,
+            includedDesktop: res.analysis?.includedDesktop,
+          });
+          reload();
+        } else {
+          dmWarn("dashboard", "summarize.fail", { date, ms, err: res?.error || "unknown" });
+          setMsg(res?.error || "Something went wrong.");
+        }
       }
     );
   };
@@ -234,6 +273,21 @@ export default function App() {
         <div>
           {tab === "overview" && (
             <div className="space-y-6">
+              {analysis ? (
+                <DailySummary
+                  summary={analysis.summary}
+                  analyzedAt={analysis.analyzedAt}
+                  includedDesktop={analysis.includedDesktop}
+                  desktop={data.desktop}
+                />
+              ) : (
+                <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
+                  <p className="text-slate-300">
+                    Tracked and categorized locally. Click{" "}
+                    <span className="text-indigo-400 font-medium">Summarize</span> for your AI narrative.
+                  </p>
+                </div>
+              )}
               {isToday && (
                 <LiveStatus
                   openSeconds={data.openSeconds}
@@ -248,26 +302,6 @@ export default function App() {
                 chromeActiveSeconds={data.activeSeconds}
                 live={macLive}
               />
-              {analysis ? (
-                <DailySummary
-                  summary={analysis.summary}
-                  observation={analysis.observation}
-                  goalAssessment={analysis.goalAssessment}
-                  openSeconds={data.openSeconds}
-                  activeSeconds={data.activeSeconds}
-                  analyzedAt={analysis.analyzedAt}
-                  includedDesktop={analysis.includedDesktop}
-                  showClocks={!isToday}
-                  desktop={data.desktop}
-                />
-              ) : (
-                <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
-                  <p className="text-slate-300">
-                    Tracked and categorized locally. Click{" "}
-                    <span className="text-indigo-400 font-medium">Summarize</span> for your AI narrative.
-                  </p>
-                </div>
-              )}
             </div>
           )}
 
