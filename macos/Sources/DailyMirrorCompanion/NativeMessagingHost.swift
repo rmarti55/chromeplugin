@@ -38,7 +38,7 @@ enum NativeMessagingHost {
             guard let date = message["date"] as? String else {
                 return ["error": "Missing date"]
             }
-            return syncedDayResponse(for: date)
+            return ["date": date, "devices": []]
 
         default:
             return ["error": "Unknown type: \(type)"]
@@ -55,21 +55,6 @@ enum NativeMessagingHost {
             return ["error": "Encode failed"]
         }
         return obj
-    }
-
-    private static func syncedDayResponse(for date: String) -> [String: Any] {
-        let sem = DispatchSemaphore(value: 0)
-        var payloads: [DayMetricsPayload] = []
-        Task {
-            payloads = await CloudKitSync.shared.fetchMergedForDay(date)
-            sem.signal()
-        }
-        _ = sem.wait(timeout: .now() + 5)
-        guard let data = try? JSONEncoder().encode(payloads),
-              let arr = try? JSONSerialization.jsonObject(with: data) else {
-            return ["error": "Encode failed", "devices": []]
-        }
-        return ["date": date, "devices": arr]
     }
 
     private static func writeResponse(_ obj: [String: Any]) {

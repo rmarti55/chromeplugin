@@ -18,46 +18,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         AppTracker.shared.start()
     }
-
-    func applicationWillTerminate(_ notification: Notification) {
-        Task { await CloudKitSync.shared.uploadTodayIfNeeded() }
-    }
 }
 
 struct MenuBarView: View {
     @EnvironmentObject var tracker: AppTracker
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Daily Mirror")
-                .font(.headline)
-            Text("Device presence: \(SessionDeriver.formatDuration(tracker.todayPresenceSeconds))")
-                .font(.subheadline)
-            Text("Active use: \(SessionDeriver.formatDuration(tracker.todayActiveSeconds))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+        Text("Device presence: \(SessionDeriver.formatDuration(tracker.todayPresenceSeconds))")
+        Text("Active use: \(SessionDeriver.formatDuration(tracker.todayActiveSeconds))")
 
-            if !tracker.topApps.isEmpty {
-                Divider()
-                Text("Other apps today")
-                    .font(.caption.bold())
+        if !tracker.topApps.isEmpty {
+            Divider()
+            Section("Other apps today") {
                 ForEach(tracker.topApps.prefix(6), id: \.bundleId) { app in
-                    HStack {
-                        Text(app.name)
-                        Spacer()
-                        Text(SessionDeriver.formatDuration(app.presenceSeconds))
-                            .foregroundStyle(.secondary)
-                    }
-                    .font(.caption)
+                    Text("\(app.name) — \(SessionDeriver.formatDuration(app.presenceSeconds))")
                 }
             }
-
-            Divider()
-            Text("Chrome site detail stays in the extension dashboard.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
         }
-        .padding(12)
-        .frame(width: 280)
+
+        Divider()
+        Button("Quit Daily Mirror") {
+            NSApplication.shared.terminate(nil)
+        }
     }
 }

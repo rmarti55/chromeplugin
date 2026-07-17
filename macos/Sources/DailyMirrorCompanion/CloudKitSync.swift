@@ -1,8 +1,9 @@
+#if CLOUDKIT_ENABLED
 import CloudKit
 import Foundation
 
-/// Optional iCloud sync for day aggregates across Macs / iPhone viewer.
-/// Uploads JSON payloads to a private CloudKit database — no third-party server.
+/// Optional iCloud sync — requires signed build with iCloud entitlements.
+/// Enable with: swift build -Xswiftc -DCLOUDKIT_ENABLED
 actor CloudKitSync {
     static let shared = CloudKitSync()
 
@@ -34,7 +35,7 @@ actor CloudKitSync {
         do {
             _ = try await container.privateCloudDatabase.save(record)
         } catch {
-            // iCloud may be unavailable — local tracking still works
+            // iCloud may be unavailable
         }
     }
 
@@ -54,9 +55,5 @@ actor CloudKitSync {
             return []
         }
     }
-
-    func syncedDeviceIds(for dateStr: String) async -> [String] {
-        let payloads = await fetchMergedForDay(dateStr)
-        return Array(Set(payloads.map(\.deviceId)))
-    }
 }
+#endif

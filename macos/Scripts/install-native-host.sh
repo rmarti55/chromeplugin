@@ -7,14 +7,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 MACOS_DIR="$(dirname "$SCRIPT_DIR")"
 HOST_NAME="com.dailymirror.companion"
-APP_BIN="$MACOS_DIR/DailyMirrorCompanion.app/Contents/MacOS/DailyMirrorCompanion"
+HOST_SCRIPT="$SCRIPT_DIR/daily-mirror-host.sh"
 MANIFEST_DIR="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts"
 MANIFEST_PATH="$MANIFEST_DIR/$HOST_NAME.json"
 
 "$SCRIPT_DIR/bundle-app.sh"
+chmod +x "$HOST_SCRIPT"
 
-if [[ ! -f "$APP_BIN" ]]; then
-  echo "Build failed: $APP_BIN not found" >&2
+if [[ ! -x "$HOST_SCRIPT" ]]; then
+  echo "Missing host script: $HOST_SCRIPT" >&2
   exit 1
 fi
 
@@ -32,18 +33,17 @@ cat > "$MANIFEST_PATH" <<EOF
 {
   "name": "$HOST_NAME",
   "description": "Daily Mirror macOS companion — desktop app activity for Chrome extension",
-  "path": "$APP_BIN",
+  "path": "$HOST_SCRIPT",
   "type": "stdio",
   "allowed_origins": [
     "chrome-extension://${EXT_ID}/"
-  ],
-  "args": ["--native-host"]
+  ]
 }
 EOF
 
 echo "Installed native messaging host:"
 echo "  $MANIFEST_PATH"
-echo "  Binary: $APP_BIN"
+echo "  Script: $HOST_SCRIPT"
 echo ""
 echo "Launch menu bar tracker:"
 echo "  open $MACOS_DIR/DailyMirrorCompanion.app"

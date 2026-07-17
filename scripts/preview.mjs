@@ -10,7 +10,7 @@ import { fileURLToPath } from "url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const EXT_PATH = join(ROOT, "extension");
 const APP_PATH = join(ROOT, "macos", "DailyMirrorCompanion.app");
-const APP_BIN = join(APP_PATH, "Contents", "MacOS", "DailyMirrorCompanion");
+const HOST_SCRIPT = join(ROOT, "macos", "Scripts", "daily-mirror-host.sh");
 const PROFILE = "/tmp/daily-mirror-preview";
 const PORT = 9222;
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
@@ -37,10 +37,9 @@ function installHost(extensionId, hostDir) {
   const manifest = {
     name: "com.dailymirror.companion",
     description: "Daily Mirror macOS companion",
-    path: APP_BIN,
+    path: HOST_SCRIPT,
     type: "stdio",
     allowed_origins: [`chrome-extension://${extensionId}/`],
-    args: ["--native-host"],
   };
   writeFileSync(join(hostDir, "com.dailymirror.companion.json"), JSON.stringify(manifest, null, 2));
 }
@@ -51,8 +50,9 @@ async function main() {
 
   console.log("Bundling macOS companion…");
   execSync("bash Scripts/bundle-app.sh", { cwd: join(ROOT, "macos"), stdio: "inherit" });
+  execSync(`chmod +x "${HOST_SCRIPT}"`);
 
-  if (!existsSync(APP_BIN)) throw new Error(`Missing app binary: ${APP_BIN}`);
+  if (!existsSync(HOST_SCRIPT)) throw new Error(`Missing host script: ${HOST_SCRIPT}`);
 
   console.log("Launching menu bar companion…");
   spawn("open", [APP_PATH], { detached: true, stdio: "ignore" }).unref();

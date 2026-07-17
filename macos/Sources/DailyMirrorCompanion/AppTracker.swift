@@ -70,7 +70,6 @@ final class AppTracker: ObservableObject {
         currentBundleId = bid
         append(type: "app_activate", bundleId: bid, appName: app.localizedName ?? bid)
         refreshToday()
-        Task { await CloudKitSync.shared.uploadTodayIfNeeded() }
     }
 
     private func recordFrontmost(reason: String) {
@@ -112,10 +111,14 @@ final class AppTracker: ObservableObject {
     func refreshToday() {
         let date = todayDateStr()
         let deviceId = DeviceIdentity.id
-        if let metrics = SessionDeriver.computeDayMetrics(dateStr: date, deviceId: deviceId) {
-            todayPresenceSeconds = metrics.presenceSeconds
-            todayActiveSeconds = metrics.activeSeconds
-            topApps = metrics.apps.filter { !MirrorConstants.chromeBundleIds.contains($0.bundleId) }
+        guard let metrics = SessionDeriver.computeDayMetrics(dateStr: date, deviceId: deviceId) else { return }
+        let presence = metrics.presenceSeconds
+        let active = metrics.activeSeconds
+        let apps = metrics.apps.filter { !MirrorConstants.chromeBundleIds.contains($0.bundleId) }
+        DispatchQueue.main.async { [weak self] in
+            self?.todayPresenceSeconds = presence
+            self?.todayActiveSeconds = active
+            self?.topApps = apps
         }
     }
 }
