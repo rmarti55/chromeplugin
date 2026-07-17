@@ -27,9 +27,9 @@ Canonical strings live in [`extension/labels.js`](../extension/labels.js).
 ## Chrome extension
 
 - **Live status / header** leads with **On your Mac / Using your Mac** when the companion heartbeat is fresh; **Using Chrome · {domain}** when Chrome is frontmost; **Mac companion not capturing** (amber) when the native host is installed but the menu bar tracker is not running. Without the companion, the header shows Chrome-only live status and clocks.
-- **Site list, categories, timeline, AI narrative** use **Using Chrome** for website detail — “where was my attention in the browser?”
+- **Site list, categories, timeline** use **Using Chrome** for website detail — “where was my attention in the browser?”
 - **Site list** also shows **In Chrome** per page when it exceeds using Chrome (passive reading on that page).
-- When the gap is large, call it out: “Chrome was in front 3h; ~45m was using Chrome.”
+- **AI narrative** tells what the person did (named apps, sites, themes, timing). It must not lead with or lecture about dual-clock gaps (“in front” vs “in use”); those totals stay in the UI clocks.
 
 ## macOS companion
 
@@ -52,7 +52,7 @@ When the native messaging bridge is installed, Daily Mirror tells **one day stor
 ### Hierarchy
 
 1. **Hero clocks — On your Mac / Using your Mac**  
-   Authoritative day totals from the macOS companion. One app in front at a time; this is what the header, popup, and AI summary lead with.
+   Authoritative day totals from the macOS companion. One app in front at a time; this is what the header and popup lead with. The AI summary leads with named activity, not these clock pairs.
 
 2. **Browsing chapter — In Chrome / Using Chrome**  
    Website detail from the Chrome extension event log. Shown nested under Mac totals — **not** added to them.
@@ -67,7 +67,7 @@ When the native messaging bridge is installed, Daily Mirror tells **one day stor
 | Overview header / popup | Yes | Nested below | List in Overview |
 | Sites tab | — | Per-site using Chrome | — |
 | Categories / Timeline | Merged day view when companion connected | Included in merge | Included in merge |
-| AI summary | Leads narrative | Site detail + categories/themes | Named in narrative |
+| AI summary | Context only (not narrated as clock pairs) | Site detail + categories/themes | Named first in narrative |
 
 ### Dedup rules (important)
 

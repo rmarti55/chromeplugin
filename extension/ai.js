@@ -10,12 +10,15 @@ import {
   aggregateByDomain,
   saveAnalysis,
   getLastEventTsInDay,
-  formatDuration,
 } from "./db.js";
 import { getHistoryForDay, compareDayToHistory, getTopMisalignedDomains } from "./history.js";
 import { DEFAULT_MODEL, estimateCostUsd } from "./models.js";
 import { getDesktopDayMetricsForSummarize } from "./desktop-bridge.js";
-import { mergeDesktopWithChrome, buildDesktopSummaryForAI } from "./desktop-merge.js";
+import {
+  mergeDesktopWithChrome,
+  buildDesktopSummaryForAI,
+  buildTimelineSummaryForAI,
+} from "./desktop-merge.js";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -42,7 +45,7 @@ function buildDomainSummary(entries, domainHints = {}) {
         hint?.automationHint && hint.automationHint !== "none" && hint.hintNote
           ? `\n  Pattern: ${hint.hintNote}`
           : "";
-      return `- ${domain}: ${Math.round(d.minutes)} min using Chrome\n  Pages: ${d.titles.join(", ")}${hintLine}`;
+      return `- ${domain}: ${Math.round(d.minutes)} min\n  Pages: ${d.titles.join(", ")}${hintLine}`;
     })
     .join("\n");
 }
@@ -57,7 +60,7 @@ function buildHistoryContext(metrics, history, hasDesktop = false) {
     ? "Chrome History (reference only — do NOT let this dominate the summary)"
     : "Chrome History (reference only — NOT Mirror time)";
 
-  const aggregate = `${label}: ${history.historyVisitCount} visits across ${history.historyDomainCount} sites; gap-estimated dwell ≈ ${Math.round((history.estimatedDwellSeconds || 0) / 60)} min total. Never use History dwell as "using Chrome" minutes in categories or themes.`;
+  const aggregate = `${label}: ${history.historyVisitCount} visits across ${history.historyDomainCount} sites; gap-estimated dwell ≈ ${Math.round((history.estimatedDwellSeconds || 0) / 60)} min total. Never use History dwell as Chrome minutes in categories or themes.`;
 
   if (!misaligned.length) {
     return `\n${aggregate}\nHistory and Mirror visit patterns are broadly aligned today.`;
@@ -69,10 +72,10 @@ function buildHistoryContext(metrics, history, hasDesktop = false) {
       : m.alignment === "mirror_low"
         ? "History >> Mirror visits"
         : m.alignment === "dwell_high"
-          ? "History est. dwell >> using Chrome"
+          ? "History est. dwell >> Mirror"
           : "visit count mismatch";
     const titles = m.titles.length ? `\n    Pages: ${m.titles.join("; ")}` : "";
-    return `- ${m.domain}: ${kind}; History ${m.historyVisits} visits (est. ${m.historyDwellMinutes}m), Mirror ${m.mirrorVisits} navs / ${m.mirrorActiveMinutes}m using Chrome${titles}`;
+    return `- ${m.domain}: ${kind}; History ${m.historyVisits} visits (est. ${m.historyDwellMinutes}m), Mirror ${m.mirrorVisits} navs / ${m.mirrorActiveMinutes}m${titles}`;
   });
 
   return `\n${aggregate}\nTop History/Mirror gaps (context only — never as minute totals):\n${lines.join("\n")}`;
@@ -81,12 +84,12 @@ function buildHistoryContext(metrics, history, hasDesktop = false) {
 function buildPrompt(
   date,
   domainSummary,
-  openMinutes,
   activeMinutes,
   goalText,
   historyContext = "",
   desktopMerge = null,
-  strictMac = false
+  strictMac = false,
+  timelineContext = ""
 ) {
   const goalBlock = goalText
     ? `\nThe person wrote down what they were trying to do:\n"${goalText}"\n`
@@ -98,67 +101,54 @@ function buildPrompt(
     : `- "goalAssessment": null (no goal was set).`;
 
   const hasDesktop = desktopMerge?.available;
-  const devicePresence = Math.round((desktopMerge?.devicePresenceSeconds || 0) / 60);
-  const deviceActive = Math.round((desktopMerge?.deviceActiveSeconds || 0) / 60);
   const desktopContext = hasDesktop ? buildDesktopSummaryForAI(desktopMerge) : "";
-
-  const gapNote = hasDesktop
-    ? devicePresence > deviceActive * 1.25
-      ? `\nNote: On your Mac in front (${devicePresence} min) is much higher than in use (${deviceActive} min) — mention apps left in front without input or reading without typing.`
-      : openMinutes > activeMinutes * 1.25
-        ? `\nNote: In Chrome (${openMinutes} min) is much higher than using Chrome (${activeMinutes} min) — mention passive reading in Chrome.`
-        : ""
-    : openMinutes > activeMinutes * 1.25
-      ? `\nNote: In Chrome (${openMinutes} min) is much higher than using Chrome (${activeMinutes} min) — mention reading without input, Chrome in front while working in other apps, or rapid automated browsing if patterns are flagged.`
-      : "";
 
   const activityBlock = hasDesktop
     ? `${desktopContext}
 
-Browsing in Chrome (website detail — NOT added to Mac totals above):
+Browsing in Chrome (website detail — NOT added to Mac app totals above):
 ${domainSummary}
 
-In Chrome: ${openMinutes} min (browser in front)
-Using Chrome: ${activeMinutes} min (in front + recent input; Chrome idle API: active)`
+Chrome browsing time for categories/themes: ${activeMinutes} min`
     : `Browsing activity for ${date} (NOT Chrome History):
 ${domainSummary}
 
-In Chrome: ${openMinutes} min (browser in front)
-Using Chrome: ${activeMinutes} min (in front + recent input; Chrome idle API: active)`;
+Chrome browsing time for categories/themes: ${activeMinutes} min`;
 
   const opener = hasDesktop
     ? "You are a calm, honest mirror for how someone spent their day on this Mac."
     : "You are a calm, honest mirror for how someone spent their day online.";
 
   const macCriticalRule = hasDesktop
-    ? `- CRITICAL: The first sentence of "summary" MUST state "On your Mac: ${devicePresence} min in front, ${deviceActive} min in use" (use these exact numbers) and name at least one non-browser app with minutes, OR state explicitly that only Chrome was used if no other apps appear above. Do NOT open with Chrome-only minutes.`
+    ? `- CRITICAL: The first sentence of "summary" MUST name what dominated the Mac day — specific apps and approximate minutes (e.g. "Mostly Slack (~35m) and Cursor (~20m)…"). If only Chrome appears above, say so explicitly. Do NOT open with clock totals, dual-clock pairs, or phrases like "On your Mac", "in front", or "in use".`
     : "";
 
   const strictBlock = strictMac
-    ? `\nREWRITE REQUIRED: Your previous response omitted Mac companion data. The summary MUST lead with On your Mac totals and name desktop apps.\n`
+    ? `\nREWRITE REQUIRED: Your previous response omitted Mac companion apps. The summary MUST lead with named desktop apps and minutes (or state only Chrome was used).\n`
     : "";
 
   const leadRule = hasDesktop
-    ? `- Lead the summary with the whole Mac day (On your Mac / Using your Mac), then other apps by name with minutes, then Chrome browsing detail. The summary must cover Mac + Chrome — never Chrome alone.`
-    : `- Lead with minutes using Chrome, themes, and what the person did — never navigation or visit counts from Mirror.`;
+    ? `- Lead the summary with what the person actually did on the Mac (named apps + minutes), then Chrome browsing themes/sites. Cover Mac + Chrome — never Chrome alone. Never lead with dual-clock totals.`
+    : `- Lead with what the person did in the browser — sites, themes, and minutes — never navigation or visit counts from Mirror.`;
 
-  const observationRule = hasDesktop
-    ? `- The observation may cover Mac-wide patterns (app switching, long in-front vs in-use gaps) or Chrome-specific patterns; prefer Mac-wide when both exist.`
-    : `- If in Chrome >> using Chrome, include one sentence explaining the gap (reading, other apps, automation patterns).`;
+  const observationRule = `- "observation" must be one concrete insight about the day itself: dominant apps/sites, themes, morning vs afternoon shifts, goal drift, or how attention was split. Prefer specifics with names and rough minutes.
+- NEVER comment on measurement quirks: no "in front" vs "in use", no idle vs input, no "apps left open", no passive reading as a tracker artifact, no explaining how clocks work. The dashboard already shows those totals.`;
+
+  const clockBanRule = `- CRITICAL: In "summary" and "observation", never use the phrases "in front", "in use", "On your Mac: … min", "Using your Mac", "left open without input", or compare two time clocks. Tell the story of the day, not the trackers.`;
 
   const historyRule = hasDesktop
     ? `- Chrome History is reference only for browsing blind spots — do not let History gaps dominate the summary or observation when Mac app data is present.`
-    : `- If Chrome History reference is provided, treat visit counts and gap-estimated dwell as context only — mention History-only or misaligned sites when relevant, compare trends to using Chrome and in Chrome, never replace Mirror minutes.`;
+    : `- If Chrome History reference is provided, treat visit counts and gap-estimated dwell as context only — mention History-only or misaligned sites when relevant, never replace Mirror minutes.`;
 
   return `${strictBlock}${opener} This is for the person themselves — not a manager. Be specific and kind but do not flatter.
 
 ${activityBlock}
-${gapNote}${historyContext}
+${timelineContext}${historyContext}
 ${goalBlock}
 Respond with ONLY valid JSON in this exact format:
 {
-  "summary": "A 3-4 sentence narrative of how the day was spent, in second person ('you').",
-  "observation": "One honest, non-judgmental observation about a pattern in the day.",
+  "summary": "A 3-4 sentence narrative of how the day was spent, in second person ('you'). Lead with what they did — apps, sites, themes — not clock jargon.",
+  "observation": "One honest, non-judgmental observation about a real pattern in the day (not measurement).",
   "goalAssessment": "see rule below",
   "categories": [ { "name": "Category Name", "minutes": 120, "percentage": 30 } ],
   "themes": [ { "name": "Theme description", "sites": ["domain1.com"], "minutes": 60 } ],
@@ -168,8 +158,9 @@ Respond with ONLY valid JSON in this exact format:
 Rules:
 ${leadRule}
 ${macCriticalRule}
+${clockBanRule}
 ${historyRule}
-- Category and theme minutes must reflect USING CHROME only (website time) and sum to ${activeMinutes}.
+- Category and theme minutes must reflect Chrome browsing time only and sum to ${activeMinutes}.
 - When Mac data is present, mention desktop apps by name and minutes in the summary; do not fold desktop minutes into categories or themes.
 ${observationRule}
 - If a domain has a "Pattern:" note, mention possible testing, automation, or rapid lookups — never claim Claude, Codex, or Cursor initiated activity unless the person simply visited that product's website.
@@ -189,37 +180,35 @@ function validateMacSummary(summary, desktopMerge) {
   if (!desktopMerge?.available || !summary) return true;
 
   const lower = summary.toLowerCase();
-  const mentionsMac =
-    lower.includes("on your mac") ||
-    lower.includes("your mac") ||
-    lower.includes("on the mac") ||
-    lower.includes("on this mac");
-
-  if (mentionsMac) return true;
 
   for (const app of desktopMerge.otherApps || []) {
     if (app.name && lower.includes(app.name.toLowerCase())) return true;
+  }
+
+  // Chrome-only Mac day is valid if we say so, or mention Chrome browsing.
+  if (!(desktopMerge.otherApps || []).length) {
+    if (lower.includes("chrome") || lower.includes("browser") || lower.includes("only")) return true;
   }
 
   return false;
 }
 
 function buildMacSummaryPrefix(desktopMerge) {
-  const presence = formatDuration(desktopMerge.devicePresenceSeconds || 0);
-  const active = formatDuration(desktopMerge.deviceActiveSeconds || 0);
-
-  const appNames = [];
-  for (const app of (desktopMerge.otherApps || []).slice(0, 3)) {
-    if (app.name) appNames.push(app.name);
+  const apps = (desktopMerge.otherApps || []).slice(0, 3);
+  if (apps.length) {
+    const parts = apps.map((a) => {
+      const mins = Math.round((a.activeSeconds || a.presenceSeconds || 0) / 60);
+      return `${a.name} (~${mins}m)`;
+    });
+    return `Most of your Mac time went to ${parts.join(" and ")}. `;
   }
-  if (desktopMerge.chromeApp) appNames.push("Chrome");
-
-  const appsPhrase =
-    appNames.length > 0
-      ? `including time in ${appNames.slice(0, 3).join(", ")}`
-      : "across your apps";
-
-  return `You spent ${presence} on your Mac (${active} in use), ${appsPhrase}. `;
+  if (desktopMerge.chromeApp) {
+    const mins = Math.round(
+      (desktopMerge.chromeApp.activeSeconds || desktopMerge.chromeApp.presenceSeconds || 0) / 60
+    );
+    return `Your Mac day was mostly Chrome (~${mins}m). `;
+  }
+  return "On this Mac day, ";
 }
 
 async function resolveDesktopPayload(dateStr, desktopPayload) {
@@ -340,21 +329,25 @@ export async function analyzeDay(dateStr, options = {}) {
   const openMinutes = Math.round(openSeconds / 60);
   const devicePresenceMinutes = Math.round((desktopMerge.devicePresenceSeconds || 0) / 60);
   const deviceActiveMinutes = Math.round((desktopMerge.deviceActiveSeconds || 0) / 60);
-  const desktopAppCount = (desktopMerge.otherApps?.length || 0) + (desktopMerge.chromeApp ? 1 : 0);
+  const desktopAppCount = (desktopMerge.otherApps || []).length + (desktopMerge.chromeApp ? 1 : 0);
   const lastEventTs = await getLastEventTsInDay(dateStr, now);
   const goalText = (goals || "").trim();
   const domainSummary = buildDomainSummary(entries, domainHints);
   const historyContext = buildHistoryContext(metrics, history, hasDesktop);
+  const timelineForAI = hasDesktop
+    ? desktopMerge.mergedTimeline || metrics.timeline || []
+    : metrics.timeline || [];
+  const timelineContext = buildTimelineSummaryForAI(timelineForAI);
 
   const prompt = buildPrompt(
     dateStr,
     domainSummary,
-    openMinutes,
     activeMinutes,
     goalText,
     historyContext,
     desktopMerge,
-    false
+    false,
+    timelineContext
   );
 
   let { parsed, usage } = await callModel(apiKey, prompt);
@@ -363,12 +356,12 @@ export async function analyzeDay(dateStr, options = {}) {
     const retryPrompt = buildPrompt(
       dateStr,
       domainSummary,
-      openMinutes,
       activeMinutes,
       goalText,
       historyContext,
       desktopMerge,
-      true
+      true,
+      timelineContext
     );
     const retry = await callModel(apiKey, retryPrompt);
     parsed = retry.parsed;

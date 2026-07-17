@@ -117,35 +117,68 @@ function mergeTimelines(chromeTimeline, desktopTimeline, otherApps) {
 export function buildDesktopSummaryForAI(desktopMerge) {
   if (!desktopMerge?.available) return "";
 
-  const devicePresence = Math.round((desktopMerge.devicePresenceSeconds || 0) / 60);
-  const deviceActive = Math.round((desktopMerge.deviceActiveSeconds || 0) / 60);
-
   const otherLines =
     desktopMerge.otherApps?.length > 0
       ? desktopMerge.otherApps
           .slice(0, 10)
-          .map(
-            (a) =>
-              `- ${a.name}: ${Math.round((a.activeSeconds || 0) / 60)} min in use, ${Math.round((a.presenceSeconds || 0) / 60)} min in front`
-          )
+          .map((a) => {
+            const mins = Math.round((a.activeSeconds || a.presenceSeconds || 0) / 60);
+            return `- ${a.name}: ${mins} min`;
+          })
           .join("\n")
       : "- (no non-browser apps today)";
 
   const chromeAppLine = desktopMerge.chromeApp
-    ? `\nChrome as one app (macOS): ${Math.round((desktopMerge.chromeApp.presenceSeconds || 0) / 60)} min in front, ${Math.round((desktopMerge.chromeApp.activeSeconds || 0) / 60)} min in use — site minutes below are separate detail.`
+    ? `\nChrome (as an app): ${Math.round((desktopMerge.chromeApp.activeSeconds || desktopMerge.chromeApp.presenceSeconds || 0) / 60)} min — site minutes below are separate detail.`
     : "";
 
   const categoryLine =
     desktopMerge.categories?.length > 0
-      ? `\nDesktop app categories (in use, non-browser): ${desktopMerge.categories
+      ? `\nDesktop app categories (non-browser): ${desktopMerge.categories
           .slice(0, 8)
           .map((c) => `${c.name} ${Math.round((c.seconds ?? c.minutes * 60) / 60)}m`)
           .join(", ")}`
       : "";
 
-  return `\nYour day on this Mac (authoritative day totals — one app in front at a time):
-On your Mac: ${devicePresence} min in front, ${deviceActive} min in use
+  return `\nYour day on this Mac (apps by time spent — do not quote dual clock totals in the narrative):
 Other apps today:
 ${otherLines}${chromeAppLine}${categoryLine}
-Do NOT add Chrome website minutes to On your Mac totals above.`;
+Do NOT add Chrome website minutes to Mac app totals above.`;
+}
+
+/** Compact hourly shape for AI narrative — timing insights, not clock jargon. */
+export function buildTimelineSummaryForAI(timeline, { maxHours = 12 } = {}) {
+  if (!timeline?.length) return "";
+
+  const rows = timeline
+    .filter((h) => (h.total || 0) >= 60 || (h.openSeconds || 0) >= 60)
+    .sort((a, b) => a.hourStartTs - b.hourStartTs);
+
+  if (!rows.length) return "";
+
+  const limited =
+    rows.length <= maxHours
+      ? rows
+      : [...rows]
+          .sort((a, b) => (b.total || 0) - (a.total || 0))
+          .slice(0, maxHours)
+          .sort((a, b) => a.hourStartTs - b.hourStartTs);
+
+  const lines = limited.map((h) => {
+    const label = h.hour || new Date(h.hourStartTs).toLocaleTimeString([], { hour: "numeric" });
+    const parts = [];
+    for (const a of (h.apps || []).slice(0, 3)) {
+      const m = Math.round((a.seconds || 0) / 60);
+      if (m > 0 && a.name) parts.push(`${a.name} ${m}m`);
+    }
+    for (const d of (h.domains || h.chromeDomains || []).slice(0, 3)) {
+      const name = d.domain || d;
+      const m = Math.round((d.seconds || 0) / 60);
+      if (name && m > 0) parts.push(`${name} ${m}m`);
+    }
+    const detail = parts.length ? parts.join(" · ") : h.activity || "—";
+    return `${label} — ${detail}`;
+  });
+
+  return `\nRough hourly shape of the day (use for morning/afternoon timing — do not invent hours not listed):\n${lines.join("\n")}`;
 }
