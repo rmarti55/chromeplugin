@@ -1,5 +1,6 @@
 import { getDayMetrics, aggregateByDomain, formatDuration, toDateStr } from "./db.js";
 import { getLiveStatus } from "./live.js";
+import { mergeDesktopWithChrome } from "./desktop-merge.js";
 import { LABELS } from "./labels.js";
 
 const $ = (id) => document.getElementById(id);
@@ -13,6 +14,20 @@ function showStatus(msg, type) {
 
 function openDashboard() {
   chrome.tabs.create({ url: chrome.runtime.getURL("dashboard/dist/index.html") });
+}
+
+function fetchDesktopDay(dateStr) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), 2500);
+    chrome.runtime.sendMessage({ type: "GET_DESKTOP_DAY", date: dateStr }, (res) => {
+      clearTimeout(timer);
+      if (chrome.runtime.lastError || !res?.ok) {
+        resolve(null);
+        return;
+      }
+      resolve(res.data);
+    });
+  });
 }
 
 async function renderLive() {
@@ -44,24 +59,56 @@ async function renderLive() {
   }
 }
 
+function appendStrong(parent, text) {
+  const el = document.createElement("strong");
+  el.textContent = text;
+  parent.appendChild(el);
+  return el;
+}
+
 async function renderStats() {
   const el = $("stats");
   try {
-    const { openSeconds, activeSeconds, sessions } = await getDayMetrics(todayStr(), Date.now());
-    if (!sessions.length && openSeconds === 0) {
+    const date = todayStr();
+    const now = Date.now();
+    const [metrics, desktopRaw] = await Promise.all([getDayMetrics(date, now), fetchDesktopDay(date)]);
+    const desktop = mergeDesktopWithChrome(metrics, desktopRaw);
+    const { openSeconds, activeSeconds, sessions } = metrics;
+
+    if (!sessions.length && openSeconds === 0 && !desktop.available) {
       el.textContent = "No activity tracked yet today.";
       return;
     }
+
     const domains = aggregateByDomain(sessions).length;
     el.textContent = "";
+
+    if (desktop.available) {
+      el.appendChild(document.createTextNode(`${LABELS.onMac}: `));
+      appendStrong(el, formatDuration(desktop.devicePresenceSeconds || 0));
+      el.appendChild(document.createTextNode(` · ${LABELS.usingMac}: `));
+      appendStrong(el, formatDuration(desktop.deviceActiveSeconds || 0));
+      el.appendChild(document.createElement("br"));
+
+      const browsing = document.createElement("span");
+      browsing.className = "browsing-line";
+      browsing.appendChild(document.createTextNode(`${LABELS.browsingChapter} — ${LABELS.inChrome}: `));
+      appendStrong(browsing, formatDuration(openSeconds));
+      browsing.appendChild(document.createTextNode(` · ${LABELS.usingChrome}: `));
+      appendStrong(browsing, formatDuration(activeSeconds));
+      el.appendChild(browsing);
+
+      if (domains > 0) {
+        el.appendChild(document.createElement("br"));
+        el.appendChild(document.createTextNode(`${domains} site${domains === 1 ? "" : "s"}.`));
+      }
+      return;
+    }
+
     el.appendChild(document.createTextNode(`${LABELS.inChrome}: `));
-    const strongOpen = document.createElement("strong");
-    strongOpen.textContent = formatDuration(openSeconds);
-    el.appendChild(strongOpen);
+    appendStrong(el, formatDuration(openSeconds));
     el.appendChild(document.createTextNode(` · ${LABELS.usingChrome}: `));
-    const strongActive = document.createElement("strong");
-    strongActive.textContent = formatDuration(activeSeconds);
-    el.appendChild(strongActive);
+    appendStrong(el, formatDuration(activeSeconds));
     if (domains > 0) {
       el.appendChild(document.createTextNode(` · ${domains} site${domains === 1 ? "" : "s"}.`));
     } else {
@@ -101,7 +148,10 @@ document.addEventListener("DOMContentLoaded", () => {
     $("summarizeBtn").disabled = true;
     showStatus("Writing your daily narrative… (10–30s)", "loading");
 
-    chrome.runtime.sendMessage({ type: "ANALYZE_DAY", date: todayStr() }, (res) => {
+    const date = todayStr();
+    const desktopPayload = await fetchDesktopDay(date);
+
+    chrome.runtime.sendMessage({ type: "ANALYZE_DAY", date, desktopPayload }, (res) => {
       $("summarizeBtn").disabled = false;
       if (chrome.runtime.lastError) {
         showStatus(`Error: ${chrome.runtime.lastError.message}`, "error");

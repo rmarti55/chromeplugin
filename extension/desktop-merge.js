@@ -115,22 +115,37 @@ function mergeTimelines(chromeTimeline, desktopTimeline, otherApps) {
 }
 
 export function buildDesktopSummaryForAI(desktopMerge) {
-  if (!desktopMerge?.available || !desktopMerge.otherApps?.length) return "";
-
-  const lines = desktopMerge.otherApps
-    .slice(0, 10)
-    .map(
-      (a) =>
-        `- ${a.name}: ${Math.round((a.activeSeconds || 0) / 60)} min in use, ${Math.round((a.presenceSeconds || 0) / 60)} min in front`
-    )
-    .join("\n");
+  if (!desktopMerge?.available) return "";
 
   const devicePresence = Math.round((desktopMerge.devicePresenceSeconds || 0) / 60);
   const deviceActive = Math.round((desktopMerge.deviceActiveSeconds || 0) / 60);
 
-  return `\nDesktop apps (macOS companion — NOT site-level Chrome detail):
-On your Mac: ${devicePresence} min in front, ${deviceActive} min in use across all apps.
-Other apps today (exclude Chrome — site detail is above):
-${lines}
-Use desktop minutes for narrative breadth; Chrome site minutes remain authoritative for browsing.`;
+  const otherLines =
+    desktopMerge.otherApps?.length > 0
+      ? desktopMerge.otherApps
+          .slice(0, 10)
+          .map(
+            (a) =>
+              `- ${a.name}: ${Math.round((a.activeSeconds || 0) / 60)} min in use, ${Math.round((a.presenceSeconds || 0) / 60)} min in front`
+          )
+          .join("\n")
+      : "- (no non-browser apps today)";
+
+  const chromeAppLine = desktopMerge.chromeApp
+    ? `\nChrome as one app (macOS): ${Math.round((desktopMerge.chromeApp.presenceSeconds || 0) / 60)} min in front, ${Math.round((desktopMerge.chromeApp.activeSeconds || 0) / 60)} min in use — site minutes below are separate detail.`
+    : "";
+
+  const categoryLine =
+    desktopMerge.categories?.length > 0
+      ? `\nDesktop app categories (in use, non-browser): ${desktopMerge.categories
+          .slice(0, 8)
+          .map((c) => `${c.name} ${Math.round((c.seconds ?? c.minutes * 60) / 60)}m`)
+          .join(", ")}`
+      : "";
+
+  return `\nYour day on this Mac (authoritative day totals — one app in front at a time):
+On your Mac: ${devicePresence} min in front, ${deviceActive} min in use
+Other apps today:
+${otherLines}${chromeAppLine}${categoryLine}
+Do NOT add Chrome website minutes to On your Mac totals above.`;
 }

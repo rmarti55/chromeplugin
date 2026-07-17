@@ -20,11 +20,19 @@ export const LABELS = {
   inBackground: "Chrome in background",
   usingChromeOn: "Using Chrome ·",
 
+  // Unified day story
+  browsingChapter: "Browsing",
+  otherAppsToday: "Other apps today",
+  dayByHour: "Your day by hour",
+  dayByCategory: "Your day by category",
+
   // Tooltips
   tipInChrome: "Chrome was the app on screen.",
   tipUsingChrome: "You were using the keyboard or mouse in Chrome.",
   tipOnMac: "Any app was on screen (one at a time).",
   tipUsingMac: "You were using the keyboard or mouse on your Mac.",
+  tipBrowsingChapter: "Website detail when Chrome was in front — not added to Mac totals.",
+  tipOtherApps: "Non-browser apps that were in front today.",
 };
 
 export function appTimeLabel(presenceSeconds, activeSeconds) {

@@ -131,7 +131,10 @@ export function fingerprintsMatch(a, b) {
   return (
     a.activeSeconds === b.activeSeconds &&
     a.openSeconds === b.openSeconds &&
-    a.lastEventTs === b.lastEventTs
+    a.lastEventTs === b.lastEventTs &&
+    (a.devicePresenceSeconds ?? 0) === (b.devicePresenceSeconds ?? 0) &&
+    (a.deviceActiveSeconds ?? 0) === (b.deviceActiveSeconds ?? 0) &&
+    (a.desktopAppCount ?? 0) === (b.desktopAppCount ?? 0)
   );
 }
 

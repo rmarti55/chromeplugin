@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { formatDuration } from "../../../db.js";
 import { getLiveStatus } from "../../../live.js";
 import { LABELS } from "../../../labels.js";
+import { DayClocks } from "./DayClocks.jsx";
 
 export function LiveStatus({ openSeconds, activeSeconds, desktop }) {
   const [act, setAct] = useState({ status: "capturing" });
@@ -23,8 +23,6 @@ export function LiveStatus({ openSeconds, activeSeconds, desktop }) {
   const paused = act.status === "paused";
   const idle = act.status === "idle";
   const dot = paused ? "bg-amber-500" : idle ? "bg-sky-500" : "bg-green-500";
-
-  const showMac = desktop?.available;
 
   return (
     <div className="flex items-center justify-between gap-4 mb-8 px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
@@ -52,49 +50,11 @@ export function LiveStatus({ openSeconds, activeSeconds, desktop }) {
           )}
         </span>
       </div>
-      <div className="text-sm text-slate-400 shrink-0 text-right space-y-1">
-        {showMac ? (
-          <>
-            <div className="flex gap-4 justify-end tabular-nums">
-              <span title={LABELS.tipOnMac}>
-                <span className="text-slate-500">{LABELS.onMac}: </span>
-                <span className="text-indigo-400 font-semibold">
-                  {formatDuration(desktop.devicePresenceSeconds || 0)}
-                </span>
-              </span>
-              <span title={LABELS.tipUsingMac}>
-                <span className="text-slate-500">{LABELS.usingMac}: </span>
-                <span className="text-slate-300">
-                  {formatDuration(desktop.deviceActiveSeconds || 0)}
-                </span>
-              </span>
-            </div>
-            <div className="flex gap-4 justify-end tabular-nums text-xs">
-              <span title={LABELS.tipInChrome}>
-                <span className="text-slate-500">{LABELS.inChrome}: </span>
-                <span className="text-slate-400">{formatDuration(openSeconds || 0)}</span>
-              </span>
-              <span title={LABELS.tipUsingChrome}>
-                <span className="text-slate-500">{LABELS.usingChrome}: </span>
-                <span className="text-slate-400">{formatDuration(activeSeconds || 0)}</span>
-              </span>
-            </div>
-          </>
-        ) : (
-          <>
-            <div title={LABELS.tipInChrome}>
-              <span className="tabular-nums text-indigo-400 font-semibold">
-                {formatDuration(openSeconds || 0)}
-              </span>{" "}
-              <span className="text-slate-500">{LABELS.inChrome}</span>
-            </div>
-            <div className="text-xs text-slate-500" title={LABELS.tipUsingChrome}>
-              {LABELS.usingChrome}:{" "}
-              <span className="tabular-nums text-slate-400">{formatDuration(activeSeconds || 0)}</span>
-            </div>
-          </>
-        )}
-      </div>
+      <DayClocks
+        openSeconds={openSeconds}
+        activeSeconds={activeSeconds}
+        desktop={desktop}
+      />
     </div>
   );
 }

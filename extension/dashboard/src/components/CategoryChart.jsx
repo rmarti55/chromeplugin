@@ -9,6 +9,7 @@ import {
   Cell,
 } from "recharts";
 import { formatDuration } from "../../../db.js";
+import { LABELS } from "../../../labels.js";
 
 const COLORS = [
   "#6366f1",
@@ -29,7 +30,7 @@ const tooltipStyle = {
   borderRadius: "8px",
 };
 
-export function CategoryChart({ categories }) {
+export function CategoryChart({ categories, merged }) {
   if (!categories || categories.length === 0) return null;
 
   const chartData = categories.map((c) => ({
@@ -39,7 +40,14 @@ export function CategoryChart({ categories }) {
 
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
-      <h2 className="text-lg font-semibold text-slate-100 mb-4">Categories</h2>
+      <h2 className="text-lg font-semibold text-slate-100 mb-1">
+        {merged ? LABELS.dayByCategory : "Categories"}
+      </h2>
+      <p className="text-xs text-slate-500 mb-4">
+        {merged
+          ? "Chrome websites and other Mac apps — separate clocks, shared category view."
+          : "Using Chrome by category."}
+      </p>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} layout="vertical">

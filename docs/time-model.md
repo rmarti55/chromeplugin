@@ -26,8 +26,8 @@ Canonical strings live in [`extension/labels.js`](../extension/labels.js).
 
 ## Chrome extension
 
-- **Live status / header** shows **In Chrome** and **Using Chrome** (and Mac totals when the companion is connected).
-- **Site list, categories, timeline, AI narrative** use **Using Chrome** — “where was my attention?”
+- **Live status / header** leads with **On your Mac / Using your Mac** when the companion is connected; **In Chrome / Using Chrome** appears as the nested browsing chapter. Without the companion, the header shows Chrome clocks only.
+- **Site list, categories, timeline, AI narrative** use **Using Chrome** for website detail — “where was my attention in the browser?”
 - **Site list** also shows **In Chrome** per page when it exceeds using Chrome (passive reading on that page).
 - When the gap is large, call it out: “Chrome was in front 3h; ~45m was using Chrome.”
 
@@ -47,16 +47,32 @@ Storage: append-only JSONL at `~/Library/Application Support/DailyMirror/events.
 
 ## Unified day overview (Chrome + Mac)
 
-When the native messaging bridge is installed:
+When the native messaging bridge is installed, Daily Mirror tells **one day story** — not two parallel products.
 
-1. **On your Mac / Using your Mac** — sum of all apps in front (one app at a time; no overlap).
-2. **Chrome sites** — still from the extension event log only.
-3. **Other apps** — from the macOS companion, excluding browser bundle IDs.
+### Hierarchy
+
+1. **Hero clocks — On your Mac / Using your Mac**  
+   Authoritative day totals from the macOS companion. One app in front at a time; this is what the header, popup, and AI summary lead with.
+
+2. **Browsing chapter — In Chrome / Using Chrome**  
+   Website detail from the Chrome extension event log. Shown nested under Mac totals — **not** added to them.
+
+3. **Other apps**  
+   Non-browser apps from the macOS companion (Cursor, Slack, etc.), listed separately.
+
+### Where each clock appears
+
+| Surface | Mac hero | Browsing chapter | Other apps |
+|---|---|---|---|
+| Overview header / popup | Yes | Nested below | List in Overview |
+| Sites tab | — | Per-site using Chrome | — |
+| Categories / Timeline | Merged day view when companion connected | Included in merge | Included in merge |
+| AI summary | Leads narrative | Site detail + categories/themes | Named in narrative |
 
 ### Dedup rules (important)
 
 - Do **not** add Chrome site minutes on top of “Chrome as an app” in the same total.
-- Overview header: **On your Mac** and **In Chrome** as separate lines (not mixed into one number).
+- Overview header: **On your Mac** is primary; **In Chrome** is the browsing chapter beneath it.
 - Site breakdown, Chrome categories, and Chrome timeline minutes stay **extension-owned**.
 - When Chrome is frontmost, macOS records `com.google.Chrome` (or your browser bundle ID); site detail still comes only from Chrome tab events.
 

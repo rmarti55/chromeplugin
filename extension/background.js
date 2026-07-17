@@ -18,6 +18,7 @@ import { analyzeDay } from "./ai.js";
 import { refreshHistoryCacheForDate } from "./history.js";
 import { IDLE_SECONDS } from "./constants.js";
 import { getDesktopDayMetrics } from "./desktop-bridge.js";
+import { mergeDesktopWithChrome } from "./desktop-merge.js";
 
 const MIN_ACTIVITY_SECONDS = 120; // 2 min before auto-summary runs
 const RETENTION_DAYS = 120;
@@ -179,11 +180,38 @@ async function maybeAutoSummarize() {
 
   const now = Date.now();
   const dateStr = toDateStr(now);
-  const { activeSeconds, openSeconds } = await getDayMetrics(dateStr, now);
-  if (activeSeconds < MIN_ACTIVITY_SECONDS && openSeconds < MIN_ACTIVITY_SECONDS) return;
+  const metrics = await getDayMetrics(dateStr, now);
+  const { activeSeconds, openSeconds } = metrics;
+
+  let desktopMerge = { available: false, devicePresenceSeconds: 0, deviceActiveSeconds: 0, otherApps: [] };
+  try {
+    const desktopRaw = await getDesktopDayMetrics(dateStr);
+    desktopMerge = mergeDesktopWithChrome(metrics, desktopRaw);
+  } catch {
+    /* companion optional for auto-summarize */
+  }
+
+  const devicePresence = desktopMerge.devicePresenceSeconds || 0;
+  const deviceActive = desktopMerge.deviceActiveSeconds || 0;
+  const desktopAppCount = (desktopMerge.otherApps?.length || 0) + (desktopMerge.chromeApp ? 1 : 0);
+
+  if (
+    activeSeconds < MIN_ACTIVITY_SECONDS &&
+    openSeconds < MIN_ACTIVITY_SECONDS &&
+    devicePresence < MIN_ACTIVITY_SECONDS
+  ) {
+    return;
+  }
 
   const lastEventTs = await getLastEventTsInDay(dateStr, now);
-  const current = { activeSeconds, openSeconds, lastEventTs };
+  const current = {
+    activeSeconds,
+    openSeconds,
+    lastEventTs,
+    devicePresenceSeconds: devicePresence,
+    deviceActiveSeconds: deviceActive,
+    desktopAppCount,
+  };
 
   const existing = await getAnalysis(dateStr);
   if (existing?.activityFingerprint && fingerprintsMatch(existing.activityFingerprint, current)) {
@@ -201,7 +229,7 @@ async function maybeAutoSummarize() {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "ANALYZE_DAY") {
-    analyzeDay(message.date)
+    analyzeDay(message.date, { desktopPayload: message.desktopPayload ?? null })
       .then((analysis) => sendResponse({ ok: true, analysis }))
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true; // async

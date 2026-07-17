@@ -1,5 +1,4 @@
-import { formatDuration } from "../../../db.js";
-import { LABELS } from "../../../labels.js";
+import { DayClocks } from "./DayClocks.jsx";
 
 function formatAnalyzedAt(iso) {
   if (!iso) return null;
@@ -13,46 +12,39 @@ export function DailySummary({
   openSeconds,
   activeSeconds,
   analyzedAt,
+  includedDesktop,
   showClocks = true,
   desktop,
 }) {
   const lastSummarized = formatAnalyzedAt(analyzedAt);
+  const staleMacSummary = desktop?.available && includedDesktop !== true;
 
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-start justify-between gap-4 mb-4">
         <h2 className="text-lg font-semibold text-slate-100">Summary</h2>
-        <div className="text-right">
+        <div>
           {showClocks && (
-            <>
-              {desktop?.available ? (
-                <>
-                  <span className="text-sm text-slate-400 block">
-                    {LABELS.onMac}: {formatDuration(desktop.devicePresenceSeconds || 0)} ·{" "}
-                    {LABELS.usingMac}: {formatDuration(desktop.deviceActiveSeconds || 0)}
-                  </span>
-                  <span className="text-xs text-slate-500 block">
-                    {LABELS.inChrome}: {formatDuration(openSeconds || 0)} · {LABELS.usingChrome}:{" "}
-                    {formatDuration(activeSeconds || 0)}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span className="text-sm text-slate-400 block">
-                    {LABELS.inChrome}: {formatDuration(openSeconds || 0)}
-                  </span>
-                  <span className="text-xs text-slate-500 block">
-                    {LABELS.usingChrome}: {formatDuration(activeSeconds || 0)}
-                  </span>
-                </>
-              )}
-            </>
+            <DayClocks
+              openSeconds={openSeconds}
+              activeSeconds={activeSeconds}
+              desktop={desktop}
+              layout="inline"
+            />
           )}
           {lastSummarized && (
-            <span className="text-xs text-slate-500 block">Last summarized · {lastSummarized}</span>
+            <span className="text-xs text-slate-500 block mt-1 text-right">
+              Last summarized · {lastSummarized}
+            </span>
           )}
         </div>
       </div>
+
+      {staleMacSummary && (
+        <p className="text-xs text-amber-400/90 mb-4 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+          This summary was generated without Mac data — Re-summarize to include your full day.
+        </p>
+      )}
 
       {summary && <p className="text-slate-300 leading-relaxed mb-4">{summary}</p>}
 

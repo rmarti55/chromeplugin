@@ -18,7 +18,6 @@ import { Timeline } from "./components/Timeline.jsx";
 import { SessionsList } from "./components/SessionsList.jsx";
 import { LiveStatus } from "./components/LiveStatus.jsx";
 import { DesktopApps } from "./components/DesktopApps.jsx";
-import { DesktopCategories } from "./components/DesktopCategories.jsx";
 import { Settings } from "./components/Settings.jsx";
 
 const todayStr = () => toDateStr(Date.now());
@@ -83,6 +82,7 @@ function useDayData(date, cache) {
       domainHints,
       historyAlignment,
       desktop,
+      desktopRaw,
     });
     setLoading(false);
   }, [date, cache]);
@@ -125,16 +125,23 @@ export default function App() {
     });
   }, [data]);
 
-  const summarize = () => {
+  const summarize = async () => {
     if (!hasChrome) return;
     setSummarizing(true);
     setMsg(null);
-    chrome.runtime.sendMessage({ type: "ANALYZE_DAY", date }, (res) => {
-      setSummarizing(false);
-      if (chrome.runtime.lastError) setMsg(chrome.runtime.lastError.message);
-      else if (res && res.ok) reload();
-      else setMsg(res?.error || "Something went wrong.");
-    });
+    let desktopPayload = data?.desktopRaw ?? null;
+    if (!desktopPayload?.apps?.length) {
+      desktopPayload = await fetchDesktopDay(date);
+    }
+    chrome.runtime.sendMessage(
+      { type: "ANALYZE_DAY", date, desktopPayload },
+      (res) => {
+        setSummarizing(false);
+        if (chrome.runtime.lastError) setMsg(chrome.runtime.lastError.message);
+        else if (res && res.ok) reload();
+        else setMsg(res?.error || "Something went wrong.");
+      }
+    );
   };
 
   const analysis = data?.analysis;
@@ -246,6 +253,7 @@ export default function App() {
                   openSeconds={data.openSeconds}
                   activeSeconds={data.activeSeconds}
                   analyzedAt={analysis.analyzedAt}
+                  includedDesktop={analysis.includedDesktop}
                   showClocks={!isToday}
                   desktop={data.desktop}
                 />
@@ -274,10 +282,7 @@ export default function App() {
 
           {tab === "categories" && (
             <div className="space-y-6">
-              <CategoryChart categories={data.categories} />
-              {data.desktop?.categories?.length > 0 && (
-                <DesktopCategories categories={data.desktop.categories} />
-              )}
+              <CategoryChart categories={data.categories} merged={data.desktop?.available} />
             </div>
           )}
 
