@@ -40,7 +40,7 @@ async function renderLive() {
       dot.className = "dot paused";
       text.appendChild(document.createTextNode(a.message || LABELS.inBackground));
     } else if (a.status === "idle") {
-      dot.className = "dot paused";
+      dot.className = "dot idle";
       text.appendChild(document.createTextNode(a.message || LABELS.idle));
     } else if (a.domain) {
       dot.className = "dot capturing";
@@ -49,6 +49,13 @@ async function renderLive() {
       site.className = "mono";
       site.textContent = a.domain;
       text.appendChild(site);
+    } else if (a.appName) {
+      dot.className = "dot capturing";
+      text.appendChild(document.createTextNode(`${LABELS.usingMacOn} `));
+      const app = document.createElement("span");
+      app.className = "mono";
+      app.textContent = a.appName;
+      text.appendChild(app);
     } else {
       dot.className = "dot capturing";
       text.appendChild(document.createTextNode(a.message || LABELS.inChrome));

@@ -13,6 +13,7 @@ final class AppTracker: ObservableObject {
     private var isIdle = false
     private var isLocked = false
     private var currentBundleId: String?
+    private var currentAppName: String?
     private var refreshTimer: Timer?
 
     private init() {}
@@ -26,8 +27,10 @@ final class AppTracker: ObservableObject {
         }
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             self?.refreshToday()
+            self?.writeLiveStatus()
         }
         refreshToday()
+        writeLiveStatus()
     }
 
     private func subscribeWorkspace() {
@@ -43,6 +46,7 @@ final class AppTracker: ObservableObject {
             self?.isLocked = false
             self?.append(type: "active")
             self?.recordFrontmost(reason: "session_active")
+            self?.writeLiveStatus()
         }
         nc.addObserver(forName: NSWorkspace.sessionDidResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
             self?.handleLock()
@@ -61,6 +65,7 @@ final class AppTracker: ObservableObject {
             self?.isLocked = false
             self?.append(type: "active")
             self?.recordFrontmost(reason: "unlock")
+            self?.writeLiveStatus()
         }
     }
 
@@ -68,21 +73,25 @@ final class AppTracker: ObservableObject {
         isIdle = false
         guard let bid = app.bundleIdentifier else { return }
         currentBundleId = bid
-        append(type: "app_activate", bundleId: bid, appName: app.localizedName ?? bid)
+        currentAppName = app.localizedName ?? bid
+        append(type: "app_activate", bundleId: bid, appName: currentAppName)
         refreshToday()
+        writeLiveStatus()
     }
 
     private func recordFrontmost(reason: String) {
         guard let app = NSWorkspace.shared.frontmostApplication,
               let bid = app.bundleIdentifier else { return }
         currentBundleId = bid
-        append(type: "app_activate", bundleId: bid, appName: app.localizedName ?? bid)
+        currentAppName = app.localizedName ?? bid
+        append(type: "app_activate", bundleId: bid, appName: currentAppName)
     }
 
     private func handleLock() {
         guard !isLocked else { return }
         isLocked = true
         append(type: "locked")
+        writeLiveStatus()
     }
 
     private func checkIdle() {
@@ -92,10 +101,28 @@ final class AppTracker: ObservableObject {
         if idle >= threshold && !isIdle {
             isIdle = true
             append(type: "idle")
+            writeLiveStatus()
         } else if idle < threshold && isIdle {
             isIdle = false
             append(type: "active")
+            writeLiveStatus()
         }
+    }
+
+    private func writeLiveStatus() {
+        let status: String
+        if isLocked {
+            status = "locked"
+        } else if isIdle {
+            status = "idle"
+        } else {
+            status = "capturing"
+        }
+        LiveStatusStore.shared.write(
+            status: status,
+            bundleId: currentBundleId,
+            appName: currentAppName
+        )
     }
 
     private func append(type: String, bundleId: String? = nil, appName: String? = nil) {

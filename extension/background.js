@@ -17,7 +17,7 @@ import {
 import { analyzeDay } from "./ai.js";
 import { refreshHistoryCacheForDate } from "./history.js";
 import { IDLE_SECONDS } from "./constants.js";
-import { getDesktopDayMetrics } from "./desktop-bridge.js";
+import { getDesktopDayMetrics, getDesktopLiveStatus } from "./desktop-bridge.js";
 import { mergeDesktopWithChrome } from "./desktop-merge.js";
 
 const MIN_ACTIVITY_SECONDS = 120; // 2 min before auto-summary runs
@@ -128,6 +128,7 @@ function scheduleAlarms() {
 chrome.runtime.onInstalled.addListener(async () => {
   chrome.idle.setDetectionInterval(IDLE_SECONDS);
   scheduleAlarms();
+  startDesktopLivePolling();
   await refreshHistoryCacheForDate(toDateStr(Date.now())).catch(() => {});
   // Anchor the current state so time starts accruing immediately.
   await logActiveTab("focus");
@@ -136,6 +137,7 @@ chrome.runtime.onInstalled.addListener(async () => {
 chrome.runtime.onStartup.addListener(async () => {
   chrome.idle.setDetectionInterval(IDLE_SECONDS);
   scheduleAlarms();
+  startDesktopLivePolling();
   await refreshHistoryCacheForDate(toDateStr(Date.now())).catch(() => {});
   await logActiveTab("focus");
 });
@@ -225,6 +227,41 @@ async function maybeAutoSummarize() {
   }
 }
 
+// --- Desktop live status cache (Mac companion heartbeat) --------------------
+
+const DESKTOP_LIVE_REFRESH_MS = 2000;
+
+let desktopLiveCache = {
+  fetchedAt: 0,
+  hostInstalled: false,
+  data: null,
+};
+
+async function refreshDesktopLiveCache() {
+  try {
+    const data = await getDesktopLiveStatus();
+    desktopLiveCache = {
+      fetchedAt: Date.now(),
+      hostInstalled: true,
+      data,
+    };
+  } catch {
+    desktopLiveCache = {
+      fetchedAt: Date.now(),
+      hostInstalled: false,
+      data: null,
+    };
+  }
+}
+
+function startDesktopLivePolling() {
+  refreshDesktopLiveCache().catch(() => {});
+  if (startDesktopLivePolling.started) return;
+  startDesktopLivePolling.started = true;
+  setInterval(() => refreshDesktopLiveCache().catch(() => {}), DESKTOP_LIVE_REFRESH_MS);
+}
+startDesktopLivePolling.started = false;
+
 // --- Messages (from popup / dashboard) --------------------------------------
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -245,5 +282,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }
+  if (message.type === "GET_DESKTOP_LIVE") {
+    if (Date.now() - desktopLiveCache.fetchedAt > DESKTOP_LIVE_REFRESH_MS) {
+      refreshDesktopLiveCache()
+        .then(() => sendResponse({ ok: true, ...desktopLiveCache }))
+        .catch(() => sendResponse({ ok: true, ...desktopLiveCache }));
+    } else {
+      sendResponse({ ok: true, ...desktopLiveCache });
+    }
+    return true;
+  }
   return false;
 });
+
+startDesktopLivePolling();

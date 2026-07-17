@@ -45,6 +45,11 @@ export function LiveStatus({ openSeconds, activeSeconds, desktop }) {
               {LABELS.usingChromeOn}{" "}
               <span className="text-slate-100 font-medium">{act.domain}</span>
             </>
+          ) : act.appName ? (
+            <>
+              {LABELS.usingMacOn}{" "}
+              <span className="text-slate-100 font-medium">{act.appName}</span>
+            </>
           ) : (
             act.message || LABELS.inChrome
           )}

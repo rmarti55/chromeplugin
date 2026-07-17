@@ -9,7 +9,7 @@ Daily Mirror tracks **two clocks** from durable event logs. User-facing labels a
 | **In front** | **In Chrome** | **On your Mac** | App was on screen |
 | **In use** | **Using Chrome** | **Using your Mac** | In front + recent input |
 
-Live status uses Chrome official idle states where applicable: **idle**, **locked** (via [`chrome.idle`](https://developer.chrome.com/docs/extensions/reference/api/idle)).
+Live status uses Chrome official idle states where applicable: **idle**, **locked** (via [`chrome.idle`](https://developer.chrome.com/docs/extensions/reference/api/idle)). When the macOS companion is installed and its menu bar tracker is running, live status is **Mac-first**: the green/amber/sky dot reflects whole-Mac capture (frontmost app, idle, lock) via a heartbeat at `~/Library/Application Support/DailyMirror/live.json`, polled through native messaging `GET_LIVE`. Without the companion, live status falls back to Chrome-only focus and idle.
 
 ## Internal vs user vs official
 
@@ -17,7 +17,7 @@ Live status uses Chrome official idle states where applicable: **idle**, **locke
 |---|---|---|
 | `openSeconds` / `presenceSeconds` | In front / In Chrome / On your Mac | macOS **frontmost application** (`NSWorkspace.frontmostApplication`); Chrome focused window |
 | `activeSeconds` | In use / Using Chrome / Using your Mac | Chrome idle API state **active** (recent input) |
-| `idle` event | In Chrome · idle (live status only) | Chrome idle API **idle** |
+| `idle` event | In Chrome · idle (Chrome-only live) / On your Mac · idle (Mac-first live) | Chrome idle API **idle**; macOS no input for 5 min |
 | `locked` event | Screen locked | Chrome idle API **locked** |
 
 IndexedDB, Swift, and bridge JSON keep internal field names (`presenceSeconds`, etc.) — only UI copy uses the table above.
@@ -26,7 +26,7 @@ Canonical strings live in [`extension/labels.js`](../extension/labels.js).
 
 ## Chrome extension
 
-- **Live status / header** leads with **On your Mac / Using your Mac** when the companion is connected; **In Chrome / Using Chrome** appears as the nested browsing chapter. Without the companion, the header shows Chrome clocks only.
+- **Live status / header** leads with **On your Mac / Using your Mac** when the companion heartbeat is fresh; **Using Chrome · {domain}** when Chrome is frontmost; **Mac companion not capturing** (amber) when the native host is installed but the menu bar tracker is not running. Without the companion, the header shows Chrome-only live status and clocks.
 - **Site list, categories, timeline, AI narrative** use **Using Chrome** for website detail — “where was my attention in the browser?”
 - **Site list** also shows **In Chrome** per page when it exceeds using Chrome (passive reading on that page).
 - When the gap is large, call it out: “Chrome was in front 3h; ~45m was using Chrome.”
@@ -43,7 +43,7 @@ The menu bar app (`macos/`) records desktop app focus with the same two clocks:
 | `active` | input resumes | start | continues |
 | `locked` | screen lock / sleep | stop | stop |
 
-Storage: append-only JSONL at `~/Library/Application Support/DailyMirror/events.jsonl`.
+Storage: append-only JSONL at `~/Library/Application Support/DailyMirror/events.jsonl`. Live heartbeat at `~/Library/Application Support/DailyMirror/live.json` (refreshed every ~5s while the menu bar app is running).
 
 ## Unified day overview (Chrome + Mac)
 

@@ -91,6 +91,10 @@ export async function pingDesktopCompanion() {
   return nativeRequest({ type: "PING" });
 }
 
+export async function getDesktopLiveStatus() {
+  return nativeRequest({ type: "GET_LIVE" });
+}
+
 export function isChromeApp(bundleId) {
   return bundleId && CHROME_BUNDLE_IDS.has(bundleId);
 }

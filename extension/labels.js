@@ -16,9 +16,12 @@ export const LABELS = {
 
   // Live status (chrome.idle API: active | idle | locked)
   idle: "In Chrome · idle",
+  macIdle: "On your Mac · idle",
   locked: "Screen locked",
   inBackground: "Chrome in background",
   usingChromeOn: "Using Chrome ·",
+  usingMacOn: "Using your Mac ·",
+  macNotCapturing: "Mac companion not capturing",
 
   // Unified day story
   browsingChapter: "Browsing",

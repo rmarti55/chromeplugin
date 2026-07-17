@@ -18,3 +18,18 @@ export async function fetchDesktopDay(dateStr) {
     });
   });
 }
+
+export async function fetchDesktopLive() {
+  if (!hasChrome) return null;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(null), 800);
+    chrome.runtime.sendMessage({ type: "GET_DESKTOP_LIVE" }, (res) => {
+      clearTimeout(timer);
+      if (chrome.runtime.lastError || !res?.ok) {
+        resolve(null);
+        return;
+      }
+      resolve(res);
+    });
+  });
+}

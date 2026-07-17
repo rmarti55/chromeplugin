@@ -26,7 +26,10 @@ enum NativeMessagingHost {
 
         switch type {
         case "PING":
-            return ["ok": true, "version": "0.1.0"]
+            return ["ok": true, "version": LiveStatusStore.companionVersion]
+
+        case "GET_LIVE":
+            return LiveStatusStore.bridgeResponse()
 
         case "GET_DAY":
             guard let date = message["date"] as? String else {
