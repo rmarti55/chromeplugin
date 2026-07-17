@@ -21,7 +21,9 @@ export const LABELS = {
   inBackground: "Chrome in background",
   usingChromeOn: "Using Chrome ·",
   usingMacOn: "Using your Mac ·",
-  macNotCapturing: "Mac companion not capturing",
+  macNotCapturing: "Mac companion not capturing — launch the menu bar app",
+  macLive: "Mac live",
+  todayOnMac: "Today",
 
   // Unified day story
   browsingChapter: "Browsing",

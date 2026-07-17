@@ -41,6 +41,12 @@ Events append to:
 
 `~/Library/Application Support/DailyMirror/events.jsonl`
 
+Live status (green light in the Chrome dashboard) uses a heartbeat at `live.json`, written every ~5s **only while the menu bar app is running**. If you see Mac day totals but amber “not capturing”, launch the app:
+
+```bash
+open macos/DailyMirrorCompanion.app
+```
+
 ## CloudKit (optional)
 
 Day aggregates can sync to your private iCloud container (`iCloud.com.dailymirror.companion`) for multi-Mac / iPhone viewer. Requires CloudKit capability when packaging as a signed app. Local tracking works without iCloud.

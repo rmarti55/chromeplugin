@@ -75,9 +75,14 @@ export async function getLiveStatus(now = Date.now()) {
   const chromeLive = await getChromeLiveStatus(now);
   const macEnvelope = await fetchDesktopLiveFromBackground();
 
+  const macMeta = {
+    macHostInstalled: !!macEnvelope?.hostInstalled,
+    macLiveFresh: !!macEnvelope?.data?.ok,
+  };
+
   // Native host not installed or unreachable — Chrome-only live status.
   if (!macEnvelope?.hostInstalled) {
-    return chromeLive;
+    return { ...chromeLive, ...macMeta };
   }
 
   const macLive = macEnvelope.data;
@@ -88,16 +93,17 @@ export async function getLiveStatus(now = Date.now()) {
       status: "paused",
       reason: macLive?.reason || "stale",
       message: LABELS.macNotCapturing,
+      ...macMeta,
     };
   }
 
   const { status, bundleId, appName } = macLive;
 
   if (status === "locked") {
-    return { status: "paused", reason: "locked", message: LABELS.locked };
+    return { status: "paused", reason: "locked", message: LABELS.locked, ...macMeta };
   }
   if (status === "idle") {
-    return { status: "idle", reason: "idle", message: LABELS.macIdle };
+    return { status: "idle", reason: "idle", message: LABELS.macIdle, ...macMeta };
   }
 
   // Mac capturing — prefer Chrome site detail when Chrome is frontmost.
@@ -107,14 +113,17 @@ export async function getLiveStatus(now = Date.now()) {
         status: "capturing",
         domain: chromeLive.domain,
         message: LABELS.usingChrome,
+        macAppName: appName || "Chrome",
+        ...macMeta,
       };
     }
-    return { status: "capturing", message: LABELS.inChrome };
+    return { status: "capturing", message: LABELS.inChrome, macAppName: appName || "Chrome", ...macMeta };
   }
 
   return {
     status: "capturing",
     appName: appName || bundleId || "",
     message: LABELS.usingMacOn,
+    ...macMeta,
   };
 }

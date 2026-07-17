@@ -59,6 +59,7 @@ export function LiveStatus({ openSeconds, activeSeconds, desktop }) {
         openSeconds={openSeconds}
         activeSeconds={activeSeconds}
         desktop={desktop}
+        live={act}
       />
     </div>
   );
