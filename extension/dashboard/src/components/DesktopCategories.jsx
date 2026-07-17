@@ -1,4 +1,5 @@
 import { formatDuration } from "../../../db.js";
+import { LABELS } from "../../../labels.js";
 
 export function DesktopCategories({ categories }) {
   if (!categories?.length) return null;
@@ -6,7 +7,7 @@ export function DesktopCategories({ categories }) {
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
       <h2 className="text-lg font-semibold text-slate-100 mb-1">Desktop app categories</h2>
-      <p className="text-xs text-slate-500 mb-4">Active use in non-browser apps (local rules).</p>
+      <p className="text-xs text-slate-500 mb-4">Time in use in non-browser apps (local rules).</p>
       <ul className="space-y-2">
         {categories.map((c) => (
           <li key={c.name} className="flex justify-between text-sm">

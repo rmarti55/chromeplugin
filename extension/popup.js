@@ -1,5 +1,6 @@
 import { getDayMetrics, aggregateByDomain, formatDuration, toDateStr } from "./db.js";
 import { getLiveStatus } from "./live.js";
+import { LABELS } from "./labels.js";
 
 const $ = (id) => document.getElementById(id);
 const todayStr = () => toDateStr(Date.now());
@@ -22,24 +23,24 @@ async function renderLive() {
     text.textContent = "";
     if (a.status === "paused") {
       dot.className = "dot paused";
-      text.appendChild(document.createTextNode(a.message || "Chrome in background"));
+      text.appendChild(document.createTextNode(a.message || LABELS.inBackground));
     } else if (a.status === "idle") {
       dot.className = "dot paused";
-      text.appendChild(document.createTextNode(a.message || "Chrome open · no input"));
+      text.appendChild(document.createTextNode(a.message || LABELS.idle));
     } else if (a.domain) {
       dot.className = "dot capturing";
-      text.appendChild(document.createTextNode("Active use · "));
+      text.appendChild(document.createTextNode(`${LABELS.usingChromeOn} `));
       const site = document.createElement("span");
       site.className = "mono";
       site.textContent = a.domain;
       text.appendChild(site);
     } else {
       dot.className = "dot capturing";
-      text.appendChild(document.createTextNode(a.message || "Chrome open"));
+      text.appendChild(document.createTextNode(a.message || LABELS.inChrome));
     }
   } catch {
     dot.className = "dot capturing";
-    text.textContent = "Chrome open";
+    text.textContent = LABELS.inChrome;
   }
 }
 
@@ -53,11 +54,11 @@ async function renderStats() {
     }
     const domains = aggregateByDomain(sessions).length;
     el.textContent = "";
-    el.appendChild(document.createTextNode("Chrome open: "));
+    el.appendChild(document.createTextNode(`${LABELS.inChrome}: `));
     const strongOpen = document.createElement("strong");
     strongOpen.textContent = formatDuration(openSeconds);
     el.appendChild(strongOpen);
-    el.appendChild(document.createTextNode(" · Active use: "));
+    el.appendChild(document.createTextNode(` · ${LABELS.usingChrome}: `));
     const strongActive = document.createElement("strong");
     strongActive.textContent = formatDuration(activeSeconds);
     el.appendChild(strongActive);

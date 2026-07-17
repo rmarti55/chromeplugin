@@ -2,12 +2,13 @@ import { formatDuration } from "../../../db.js";
 import { categorize } from "../../../categorize.js";
 import { HINT_LABELS } from "../../../heuristics.js";
 import { HistoryReferenceDetails } from "./HistoryReference.jsx";
+import { LABELS } from "../../../labels.js";
 
 const ALIGNMENT_LABELS = {
   aligned: null,
   mirror_low: "Fewer Mirror visits",
   history_low: "Fewer History visits",
-  dwell_high: "Hist. est. > active",
+  dwell_high: "Hist. est. > in use",
   noise: "New tab noise",
 };
 
@@ -144,7 +145,7 @@ function DiagnosticRow({ row, hint, hasHistory }) {
         ) : (
           showOpen && (
             <span className="text-sky-400/70 text-xs">
-              open {formatDuration(row.mirrorOpenSeconds)}
+              {LABELS.inChrome.toLowerCase()} {formatDuration(row.mirrorOpenSeconds)}
             </span>
           )
         )}
@@ -163,7 +164,7 @@ export function SessionsList({ sessions, categoryCache, domainHints = {}, histor
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
       <h2 className="text-lg font-semibold text-slate-100 mb-1">Where your time went</h2>
-      <p className="text-xs text-slate-500 mb-4">Active use per site, ranked by time spent.</p>
+      <p className="text-xs text-slate-500 mb-4">Using Chrome per site, ranked by time spent.</p>
 
       <div className="space-y-2">
         {displayRows.map((row) => (
@@ -192,13 +193,13 @@ export function SessionsList({ sessions, categoryCache, domainHints = {}, histor
             </p>
           )}
           <p className="text-xs text-slate-500 mt-3 mb-2">
-            Mirror active use (primary) with Chrome open and History reference per domain. History
-            est. dwell is a gap proxy — not added to totals.
+            {LABELS.usingChrome} (measured) with {LABELS.inChrome.toLowerCase()} and History reference per domain.
+            History est. dwell is a gap proxy — not added to totals.
           </p>
           <div className="hidden sm:grid sm:grid-cols-[1fr_auto_auto_auto_auto] gap-x-3 text-[10px] uppercase tracking-wide text-slate-600 mb-2 px-1">
             <span>Site</span>
-            <span className="text-right w-16">Active</span>
-            <span className="text-right w-14">Open</span>
+            <span className="text-right w-16">Using</span>
+            <span className="text-right w-14">In Chrome</span>
             <span className="text-right w-14">Hist.</span>
             <span className="text-right w-14">Est.</span>
           </div>

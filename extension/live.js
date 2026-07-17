@@ -5,6 +5,7 @@
 
 import { getCurrentActivity } from "./db.js";
 import { IDLE_SECONDS } from "./constants.js";
+import { LABELS } from "./labels.js";
 
 function host(u) {
   try {
@@ -30,7 +31,7 @@ export async function getLiveStatus(now = Date.now()) {
 
   // Chrome is not the focused app — neither clock is accruing.
   if (!tab) {
-    return { status: "paused", reason: "away", message: "Chrome in background" };
+    return { status: "paused", reason: "away", message: LABELS.inBackground };
   }
 
   let idleState = "active";
@@ -41,14 +42,14 @@ export async function getLiveStatus(now = Date.now()) {
   }
 
   if (idleState === "locked") {
-    return { status: "paused", reason: "locked", message: "Screen locked" };
+    return { status: "paused", reason: "locked", message: LABELS.locked };
   }
   if (idleState !== "active") {
-    return { status: "idle", reason: "idle", message: "Chrome open · no input" };
+    return { status: "idle", reason: "idle", message: LABELS.idle };
   }
 
   if (tab && isWeb(tab.url)) {
-    return { status: "capturing", domain: host(tab.url), message: "Active use" };
+    return { status: "capturing", domain: host(tab.url), message: LABELS.usingChrome };
   }
-  return { status: "capturing", message: "Chrome open" };
+  return { status: "capturing", message: LABELS.inChrome };
 }

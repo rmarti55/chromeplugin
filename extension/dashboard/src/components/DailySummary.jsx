@@ -1,4 +1,5 @@
 import { formatDuration } from "../../../db.js";
+import { LABELS } from "../../../labels.js";
 
 function formatAnalyzedAt(iso) {
   if (!iso) return null;
@@ -27,20 +28,21 @@ export function DailySummary({
               {desktop?.available ? (
                 <>
                   <span className="text-sm text-slate-400 block">
-                    {formatDuration(desktop.devicePresenceSeconds || 0)} device presence
+                    {LABELS.onMac}: {formatDuration(desktop.devicePresenceSeconds || 0)} ·{" "}
+                    {LABELS.usingMac}: {formatDuration(desktop.deviceActiveSeconds || 0)}
                   </span>
                   <span className="text-xs text-slate-500 block">
-                    Chrome open: {formatDuration(openSeconds || 0)} · active:{" "}
+                    {LABELS.inChrome}: {formatDuration(openSeconds || 0)} · {LABELS.usingChrome}:{" "}
                     {formatDuration(activeSeconds || 0)}
                   </span>
                 </>
               ) : (
                 <>
                   <span className="text-sm text-slate-400 block">
-                    {formatDuration(openSeconds || 0)} Chrome open
+                    {LABELS.inChrome}: {formatDuration(openSeconds || 0)}
                   </span>
                   <span className="text-xs text-slate-500 block">
-                    Active use: {formatDuration(activeSeconds || 0)}
+                    {LABELS.usingChrome}: {formatDuration(activeSeconds || 0)}
                   </span>
                 </>
               )}

@@ -208,10 +208,10 @@ function trendNote(history, metrics) {
     return "History gap-estimate is higher than Mirror — many short page loads.";
   }
   if (openMin > hDwell * 1.5 && openMin > activeMin) {
-    return "Mirror Chrome open exceeds History gap-estimate — reading without many navigations.";
+    return "In Chrome exceeds History gap-estimate — reading without many navigations.";
   }
   if (activeMin > 0 && hDwell > 0 && Math.abs(hDwell - activeMin) / activeMin < 0.35) {
-    return "History gap-estimate and Mirror active use are in the same ballpark.";
+    return "History gap-estimate and using Chrome are in the same ballpark.";
   }
   return null;
 }
@@ -297,7 +297,7 @@ export function compareDayToHistory(metrics, history) {
   const openMin = Math.round((metrics.openSeconds || 0) / 60);
   const activeMin = Math.round((metrics.activeSeconds || 0) / 60);
   const hDwellMin = Math.round((history.estimatedDwellSeconds || 0) / 60);
-  const summary = `History est. dwell ≈ ${hDwellMin}m (${history.historyVisitCount} visits) | Mirror Chrome open ${openMin}m | Active use ${activeMin}m | ${mirrorNavTotal} navigations.`;
+  const summary = `History est. dwell ≈ ${hDwellMin}m (${history.historyVisitCount} visits) | In Chrome ${openMin}m | Using Chrome ${activeMin}m | ${mirrorNavTotal} navigations.`;
   const trend = trendNote(history, metrics);
 
   return { summary, trend, rows: displayRows, available: true };

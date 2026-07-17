@@ -41,7 +41,7 @@ function buildDomainSummary(entries, domainHints = {}) {
         hint?.automationHint && hint.automationHint !== "none" && hint.hintNote
           ? `\n  Pattern: ${hint.hintNote}`
           : "";
-      return `- ${domain}: ${Math.round(d.minutes)} min active use\n  Pages: ${d.titles.join(", ")}${hintLine}`;
+      return `- ${domain}: ${Math.round(d.minutes)} min using Chrome\n  Pages: ${d.titles.join(", ")}${hintLine}`;
     })
     .join("\n");
 }
@@ -52,7 +52,7 @@ function buildHistoryContext(metrics, history) {
   const alignment = compareDayToHistory(metrics, history);
   const misaligned = getTopMisalignedDomains(alignment, history, 5);
 
-  const aggregate = `Chrome History (reference only — NOT Mirror time): ${history.historyVisitCount} visits across ${history.historyDomainCount} sites; gap-estimated dwell ≈ ${Math.round((history.estimatedDwellSeconds || 0) / 60)} min total. Never use History dwell as active-use minutes in categories or themes.`;
+  const aggregate = `Chrome History (reference only — NOT Mirror time): ${history.historyVisitCount} visits across ${history.historyDomainCount} sites; gap-estimated dwell ≈ ${Math.round((history.estimatedDwellSeconds || 0) / 60)} min total. Never use History dwell as "using Chrome" minutes in categories or themes.`;
 
   if (!misaligned.length) {
     return `\n${aggregate}\nHistory and Mirror visit patterns are broadly aligned today.`;
@@ -64,10 +64,10 @@ function buildHistoryContext(metrics, history) {
       : m.alignment === "mirror_low"
         ? "History >> Mirror visits"
         : m.alignment === "dwell_high"
-          ? "History est. dwell >> Mirror active"
+          ? "History est. dwell >> using Chrome"
           : "visit count mismatch";
     const titles = m.titles.length ? `\n    Pages: ${m.titles.join("; ")}` : "";
-    return `- ${m.domain}: ${kind}; History ${m.historyVisits} visits (est. ${m.historyDwellMinutes}m), Mirror ${m.mirrorVisits} navs / ${m.mirrorActiveMinutes}m active${titles}`;
+    return `- ${m.domain}: ${kind}; History ${m.historyVisits} visits (est. ${m.historyDwellMinutes}m), Mirror ${m.mirrorVisits} navs / ${m.mirrorActiveMinutes}m using Chrome${titles}`;
   });
 
   return `\n${aggregate}\nTop History/Mirror gaps (use for narrative breadth and blind spots — never as minute totals):\n${lines.join("\n")}`;
@@ -78,12 +78,12 @@ function buildPrompt(date, domainSummary, openMinutes, activeMinutes, goalText, 
     ? `\nThe person wrote down what they were trying to do:\n"${goalText}"\n`
     : "";
   const goalRule = goalText
-    ? `- "goalAssessment": one honest sentence comparing the stated goal to how the time was actually spent (name specific sites and active-use minutes).`
+    ? `- "goalAssessment": one honest sentence comparing the stated goal to how the time was actually spent (name specific sites and minutes using Chrome).`
     : `- "goalAssessment": null (no goal was set).`;
 
   const gapNote =
     openMinutes > activeMinutes * 1.25
-      ? `\nNote: Chrome open (${openMinutes} min) is much higher than active use (${activeMinutes} min) — mention reading without input, Chrome open while working in other apps, or rapid automated browsing if patterns are flagged.`
+      ? `\nNote: In Chrome (${openMinutes} min) is much higher than using Chrome (${activeMinutes} min) — mention reading without input, Chrome in front while working in other apps, or rapid automated browsing if patterns are flagged.`
       : "";
 
   return `You are a calm, honest mirror for how someone spent their day online. This is for the person themselves — not a manager. Be specific and kind but do not flatter.
@@ -91,8 +91,8 @@ function buildPrompt(date, domainSummary, openMinutes, activeMinutes, goalText, 
 Browsing activity for ${date} (NOT Chrome History):
 ${domainSummary}
 
-Chrome open: ${openMinutes} minutes (Chrome was the focused app)
-Active use: ${activeMinutes} minutes (Chrome focused + recent mouse/keyboard input)
+In Chrome: ${openMinutes} min (browser in front)
+Using Chrome: ${activeMinutes} min (in front + recent input; Chrome idle API: active)
 ${gapNote}${historyContext}${desktopContext}
 ${goalBlock}
 Respond with ONLY valid JSON in this exact format:
@@ -106,10 +106,10 @@ Respond with ONLY valid JSON in this exact format:
 }
 
 Rules:
-- Lead with active-use minutes, themes, and what the person did — never navigation or visit counts from Mirror.
-- If Chrome History reference is provided, treat visit counts and gap-estimated dwell as context only — mention History-only or misaligned sites when relevant, compare trends to Mirror active use and Chrome open, never replace Mirror minutes.
-- Category and theme minutes must reflect ACTIVE USE only and sum to ${activeMinutes}.
-- If Chrome open >> active use, include one sentence explaining the gap (reading, other apps, automation patterns).
+- Lead with minutes using Chrome, themes, and what the person did — never navigation or visit counts from Mirror.
+- If Chrome History reference is provided, treat visit counts and gap-estimated dwell as context only — mention History-only or misaligned sites when relevant, compare trends to using Chrome and in Chrome, never replace Mirror minutes.
+- Category and theme minutes must reflect USING CHROME only and sum to ${activeMinutes}.
+- If in Chrome >> using Chrome, include one sentence explaining the gap (reading, other apps, automation patterns).
 - If a domain has a "Pattern:" note, mention possible testing, automation, or rapid lookups — never claim Claude, Codex, or Cursor initiated activity unless the person simply visited that product's website.
 - Categories are broad ("Software Development", "Social Media", "Entertainment", "Research", "Communication", "Shopping", "News", "Productivity", "Finance", "Health", "Education", "Travel").
 - Themes are specific clusters ("Learning React hooks", "Job searching").

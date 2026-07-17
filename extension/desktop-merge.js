@@ -121,7 +121,7 @@ export function buildDesktopSummaryForAI(desktopMerge) {
     .slice(0, 10)
     .map(
       (a) =>
-        `- ${a.name}: ${Math.round((a.activeSeconds || 0) / 60)} min active, ${Math.round((a.presenceSeconds || 0) / 60)} min presence`
+        `- ${a.name}: ${Math.round((a.activeSeconds || 0) / 60)} min in use, ${Math.round((a.presenceSeconds || 0) / 60)} min in front`
     )
     .join("\n");
 
@@ -129,7 +129,7 @@ export function buildDesktopSummaryForAI(desktopMerge) {
   const deviceActive = Math.round((desktopMerge.deviceActiveSeconds || 0) / 60);
 
   return `\nDesktop apps (macOS companion — NOT site-level Chrome detail):
-Device-wide: ${devicePresence} min presence, ${deviceActive} min active use across all foreground apps.
+On your Mac: ${devicePresence} min in front, ${deviceActive} min in use across all apps.
 Other apps today (exclude Chrome — site detail is above):
 ${lines}
 Use desktop minutes for narrative breadth; Chrome site minutes remain authoritative for browsing.`;

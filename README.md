@@ -10,7 +10,7 @@ writes you an honest 3–4 sentence summary measured against your own goals.
 - **Bring-your-own-key.** The daily AI summary calls OpenRouter directly with *your* API key,
   stored only on your device. Your activity is never sent anywhere except the AI provider you
   chose, and only when you ask for a summary.
-- **Honest time.** Two clocks from the same event log: **Chrome open** (browser in front) and **Active use** (in front + recent input). Site breakdowns use active use; the day total leads with Chrome open. See [`docs/time-model.md`](docs/time-model.md).
+- **Honest time.** Two clocks from the same event log: **In Chrome** (browser in front) and **Using Chrome** (in front + recent input). On Mac, **On your Mac** / **Using your Mac** for all apps. Site breakdowns use using Chrome. See [`docs/time-model.md`](docs/time-model.md).
 - **Desktop companion (optional).** The macOS menu bar app fills the “other apps” gap and merges into the dashboard via native messaging. Optional iCloud sync enables an iPhone viewer.
 
 ## Architecture
@@ -67,8 +67,8 @@ Restart Chrome. The dashboard **Overview** tab shows desktop apps alongside Chro
 ## How it works
 
 1. As you browse, the service worker records events (`activate`, `urlchange`, `focus`, `blur`,
-   `idle`, `active`) to IndexedDB with timestamps. **Chrome open** accrues while Chrome is the
-   focused app; **Active use** also pauses after ~5 min without input or when you switch apps.
+   `idle`, `active`) to IndexedDB with timestamps. **In Chrome** accrues while Chrome is the
+   frontmost app; **Using Chrome** also pauses after ~5 min without input (Chrome **idle**) or when you switch apps.
 2. The dashboard reduces those events into per-URL sessions with measured seconds, then buckets
    them locally into categories — no AI needed for the basic view.
 3. On demand (or automatically about once an hour when you've been active), the day's

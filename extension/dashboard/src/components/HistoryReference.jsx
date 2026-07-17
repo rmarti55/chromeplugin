@@ -1,10 +1,11 @@
 import { formatDuration } from "../../../db.js";
+import { LABELS } from "../../../labels.js";
 
 const ALIGNMENT_LABELS = {
   aligned: null,
   mirror_low: "Mirror tracked fewer visits",
   history_low: "History has fewer visits",
-  dwell_high: "History est. dwell higher than active",
+  dwell_high: "History est. dwell higher than using Chrome",
   noise: "New tab / homepage noise",
 };
 
@@ -21,8 +22,8 @@ function HistoryTable({ rows }) {
             <th className="pb-2 pr-3 font-medium">Domain</th>
             <th className="pb-2 pr-3 font-medium text-right">Hist. visits</th>
             <th className="pb-2 pr-3 font-medium text-right">Hist. est.</th>
-            <th className="pb-2 pr-3 font-medium text-right">Mirror active</th>
-            <th className="pb-2 pr-3 font-medium text-right">Chrome open</th>
+            <th className="pb-2 pr-3 font-medium text-right">Using Chrome</th>
+            <th className="pb-2 pr-3 font-medium text-right">{LABELS.inChrome}</th>
             <th className="pb-2 font-medium text-right">Navs</th>
           </tr>
         </thead>

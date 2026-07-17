@@ -9,7 +9,7 @@ struct DailyMirrorApp: App {
             MenuBarView()
                 .environmentObject(tracker)
         }
-        .menuBarExtraStyle(.menu)
+        .menuBarExtraStyle(.window)
     }
 }
 
@@ -24,21 +24,59 @@ struct MenuBarView: View {
     @EnvironmentObject var tracker: AppTracker
 
     var body: some View {
-        Text("Device presence: \(SessionDeriver.formatDuration(tracker.todayPresenceSeconds))")
-        Text("Active use: \(SessionDeriver.formatDuration(tracker.todayActiveSeconds))")
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Daily Mirror")
+                .font(.headline)
+                .foregroundStyle(.primary)
 
-        if !tracker.topApps.isEmpty {
-            Divider()
-            Section("Other apps today") {
-                ForEach(tracker.topApps.prefix(6), id: \.bundleId) { app in
-                    Text("\(app.name) — \(SessionDeriver.formatDuration(app.presenceSeconds))")
+            VStack(alignment: .leading, spacing: 4) {
+                Label {
+                    Text(SessionDeriver.formatDuration(tracker.todayPresenceSeconds))
+                        .foregroundStyle(.primary)
+                } icon: {
+                    Text("In front")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 64, alignment: .leading)
+                }
+                Label {
+                    Text(SessionDeriver.formatDuration(tracker.todayActiveSeconds))
+                        .foregroundStyle(.primary)
+                } icon: {
+                    Text("In use")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 64, alignment: .leading)
                 }
             }
-        }
+            .font(.subheadline)
 
-        Divider()
-        Button("Quit Daily Mirror") {
-            NSApplication.shared.terminate(nil)
+            if !tracker.topApps.isEmpty {
+                Divider()
+                Text("Other apps today")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                ForEach(tracker.topApps.prefix(6), id: \.bundleId) { app in
+                    HStack {
+                        Text(app.name)
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        Text(SessionDeriver.formatDuration(app.presenceSeconds))
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                    }
+                    .font(.caption)
+                }
+            }
+
+            Divider()
+            HStack {
+                Spacer()
+                Button("Quit") {
+                    NSApplication.shared.terminate(nil)
+                }
+                .keyboardShortcut("q")
+            }
         }
+        .padding(14)
+        .frame(width: 260)
     }
 }

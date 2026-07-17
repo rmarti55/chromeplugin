@@ -1,26 +1,43 @@
 # Time model
 
-Daily Mirror tracks two clocks from durable event logs. The Chrome extension and macOS companion use the same vocabulary.
+Daily Mirror tracks **two clocks** from durable event logs. User-facing labels are consistent across the Chrome extension, macOS companion, dashboard, and menu bar.
 
-| Term | Meaning | Stops when |
+## User-facing vocabulary
+
+| Clock | Chrome / websites | Whole Mac | Per app |
+|---|---|---|---|
+| **In front** | **In Chrome** | **On your Mac** | App was on screen |
+| **In use** | **Using Chrome** | **Using your Mac** | In front + recent input |
+
+Live status uses Chrome official idle states where applicable: **idle**, **locked** (via [`chrome.idle`](https://developer.chrome.com/docs/extensions/reference/api/idle)).
+
+## Internal vs user vs official
+
+| Internal (code) | User-facing | Official basis |
 |---|---|---|
-| **Presence** (Chrome: *Chrome open*) | The app is in front | You switch to another app, or the screen locks |
-| **Active use** | App in front + you recently used mouse/keyboard | Same as above, **or** ~5 min with no input (idle) |
+| `openSeconds` / `presenceSeconds` | In front / In Chrome / On your Mac | macOS **frontmost application** (`NSWorkspace.frontmostApplication`); Chrome focused window |
+| `activeSeconds` | In use / Using Chrome / Using your Mac | Chrome idle API state **active** (recent input) |
+| `idle` event | In Chrome · idle (live status only) | Chrome idle API **idle** |
+| `locked` event | Screen locked | Chrome idle API **locked** |
+
+IndexedDB, Swift, and bridge JSON keep internal field names (`presenceSeconds`, etc.) — only UI copy uses the table above.
+
+Canonical strings live in [`extension/labels.js`](../extension/labels.js).
 
 ## Chrome extension
 
-- **Header / today total** leads with **Chrome open** (Presence for Chrome only).
-- **Site list, categories, timeline, AI narrative** use **Active use** — “where was my attention?”
-- **Site list** also shows **Chrome open** per page when it exceeds active use (passive reading on that page).
-- When the gap is large, call it out: “Chrome was open 3h; ~45m was active use.”
+- **Live status / header** shows **In Chrome** and **Using Chrome** (and Mac totals when the companion is connected).
+- **Site list, categories, timeline, AI narrative** use **Using Chrome** — “where was my attention?”
+- **Site list** also shows **In Chrome** per page when it exceeds using Chrome (passive reading on that page).
+- When the gap is large, call it out: “Chrome was in front 3h; ~45m was using Chrome.”
 
 ## macOS companion
 
 The menu bar app (`macos/`) records desktop app focus with the same two clocks:
 
-| Event type | Source | Active use | Presence |
+| Event type | Source | In use | In front |
 |---|---|---|---|
-| `app_activate` | foreground app change | start for app | start for app |
+| `app_activate` | frontmost app change | start for app | start for app |
 | `app_blur` | app loses focus | stop | stop |
 | `idle` | no input for 5 min | **stop** | continues |
 | `active` | input resumes | start | continues |
@@ -32,14 +49,14 @@ Storage: append-only JSONL at `~/Library/Application Support/DailyMirror/events.
 
 When the native messaging bridge is installed:
 
-1. **Device presence / active** — sum of all foreground apps (one app at a time; no overlap).
+1. **On your Mac / Using your Mac** — sum of all apps in front (one app at a time; no overlap).
 2. **Chrome sites** — still from the extension event log only.
 3. **Other apps** — from the macOS companion, excluding browser bundle IDs.
 
 ### Dedup rules (important)
 
 - Do **not** add Chrome site minutes on top of “Chrome as an app” in the same total.
-- Overview header: **device presence** (or Chrome open + other-app presence as separate lines).
+- Overview header: **On your Mac** and **In Chrome** as separate lines (not mixed into one number).
 - Site breakdown, Chrome categories, and Chrome timeline minutes stay **extension-owned**.
 - When Chrome is frontmost, macOS records `com.google.Chrome` (or your browser bundle ID); site detail still comes only from Chrome tab events.
 

@@ -1,4 +1,5 @@
 import { formatDuration } from "../../../db.js";
+import { LABELS } from "../../../labels.js";
 
 export function Timeline({ timeline, merged }) {
   if (!timeline || timeline.length === 0) return null;
@@ -6,12 +7,12 @@ export function Timeline({ timeline, merged }) {
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
       <h2 className="text-lg font-semibold text-slate-100 mb-1">
-        {merged ? "Active use by hour — Chrome + desktop" : "Active use by hour"}
+        {merged ? "By hour — Chrome + apps" : "Using Chrome by hour"}
       </h2>
       <p className="text-xs text-slate-500 mb-4">
         {merged
-          ? "Merged hourly view: Chrome sites and other foreground apps."
-          : "Hours with some active browsing — not continuous Chrome open since the first hour shown."}
+          ? "Merged hourly view: Chrome sites and other apps in front."
+          : "Hours with some browsing — not continuous time since the first hour shown."}
       </p>
       <div className="relative">
         <div className="absolute left-4 top-0 bottom-0 w-px bg-slate-600" />
@@ -23,7 +24,7 @@ export function Timeline({ timeline, merged }) {
                 <span className="text-sm font-medium text-indigo-400">{entry.hour}</span>
                 {entry.openSeconds > 0 && (
                   <span className="text-xs text-slate-500 ml-2">
-                    Chrome open: {formatDuration(entry.openSeconds)}
+                    {LABELS.inChrome}: {formatDuration(entry.openSeconds)}
                   </span>
                 )}
                 {entry.desktopTotal > 0 && (
