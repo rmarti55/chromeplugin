@@ -15,6 +15,7 @@ import {
   fingerprintsMatch,
 } from "./db.js";
 import { analyzeDay } from "./ai.js";
+import { refreshHistoryCacheForDate } from "./history.js";
 import { IDLE_SECONDS } from "./constants.js";
 
 const MIN_ACTIVITY_SECONDS = 120; // 2 min before auto-summary runs
@@ -125,6 +126,7 @@ function scheduleAlarms() {
 chrome.runtime.onInstalled.addListener(async () => {
   chrome.idle.setDetectionInterval(IDLE_SECONDS);
   scheduleAlarms();
+  await refreshHistoryCacheForDate(toDateStr(Date.now())).catch(() => {});
   // Anchor the current state so time starts accruing immediately.
   await logActiveTab("focus");
 });
@@ -132,6 +134,7 @@ chrome.runtime.onInstalled.addListener(async () => {
 chrome.runtime.onStartup.addListener(async () => {
   chrome.idle.setDetectionInterval(IDLE_SECONDS);
   scheduleAlarms();
+  await refreshHistoryCacheForDate(toDateStr(Date.now())).catch(() => {});
   await logActiveTab("focus");
 });
 
@@ -145,6 +148,7 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     return;
   }
   if (alarm.name === "dailySummary") {
+    await refreshHistoryCacheForDate(toDateStr(Date.now())).catch(() => {});
     await maybeAutoSummarize();
     return;
   }

@@ -11,7 +11,7 @@ import {
   saveAnalysis,
   getLastEventTsInDay,
 } from "./db.js";
-import { getHistoryForDay } from "./history.js";
+import { getHistoryForDay, compareDayToHistory, getTopMisalignedDomains } from "./history.js";
 import { DEFAULT_MODEL, estimateCostUsd } from "./models.js";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -44,7 +44,34 @@ function buildDomainSummary(entries, domainHints = {}) {
     .join("\n");
 }
 
-function buildPrompt(date, domainSummary, openMinutes, activeMinutes, goalText, historyNote = "") {
+function buildHistoryContext(metrics, history) {
+  if (!history?.available || !history.historyVisitCount) return "";
+
+  const alignment = compareDayToHistory(metrics, history);
+  const misaligned = getTopMisalignedDomains(alignment, history, 5);
+
+  const aggregate = `Chrome History (reference only — NOT Mirror time): ${history.historyVisitCount} visits across ${history.historyDomainCount} sites; gap-estimated dwell ≈ ${Math.round((history.estimatedDwellSeconds || 0) / 60)} min total. Never use History dwell as active-use minutes in categories or themes.`;
+
+  if (!misaligned.length) {
+    return `\n${aggregate}\nHistory and Mirror visit patterns are broadly aligned today.`;
+  }
+
+  const lines = misaligned.map((m) => {
+    const kind = m.historyOnly
+      ? "History-only (Mirror saw no navigations — background tab or before tracking)"
+      : m.alignment === "mirror_low"
+        ? "History >> Mirror visits"
+        : m.alignment === "dwell_high"
+          ? "History est. dwell >> Mirror active"
+          : "visit count mismatch";
+    const titles = m.titles.length ? `\n    Pages: ${m.titles.join("; ")}` : "";
+    return `- ${m.domain}: ${kind}; History ${m.historyVisits} visits (est. ${m.historyDwellMinutes}m), Mirror ${m.mirrorVisits} navs / ${m.mirrorActiveMinutes}m active${titles}`;
+  });
+
+  return `\n${aggregate}\nTop History/Mirror gaps (use for narrative breadth and blind spots — never as minute totals):\n${lines.join("\n")}`;
+}
+
+function buildPrompt(date, domainSummary, openMinutes, activeMinutes, goalText, historyContext = "") {
   const goalBlock = goalText
     ? `\nThe person wrote down what they were trying to do:\n"${goalText}"\n`
     : "";
@@ -64,7 +91,7 @@ ${domainSummary}
 
 Chrome open: ${openMinutes} minutes (Chrome was the focused app)
 Active use: ${activeMinutes} minutes (Chrome focused + recent mouse/keyboard input)
-${gapNote}${historyNote}
+${gapNote}${historyContext}
 ${goalBlock}
 Respond with ONLY valid JSON in this exact format:
 {
@@ -78,7 +105,7 @@ Respond with ONLY valid JSON in this exact format:
 
 Rules:
 - Lead with active-use minutes, themes, and what the person did — never navigation or visit counts from Mirror.
-- If Chrome History reference is provided, treat visit counts and gap-estimated dwell as context only — compare trends to Mirror active use and Chrome open, never replace Mirror minutes.
+- If Chrome History reference is provided, treat visit counts and gap-estimated dwell as context only — mention History-only or misaligned sites when relevant, compare trends to Mirror active use and Chrome open, never replace Mirror minutes.
 - Category and theme minutes must reflect ACTIVE USE only and sum to ${activeMinutes}.
 - If Chrome open >> active use, include one sentence explaining the gap (reading, other apps, automation patterns).
 - If a domain has a "Pattern:" note, mention possible testing, automation, or rapid lookups — never claim Claude, Codex, or Cursor initiated activity unless the person simply visited that product's website.
@@ -158,17 +185,14 @@ export async function analyzeDay(dateStr) {
   const openMinutes = Math.round(openSeconds / 60);
   const lastEventTs = await getLastEventTsInDay(dateStr, now);
   const goalText = (goals || "").trim();
-  const historyNote =
-    history.available && history.historyVisitCount > 0
-      ? `\nFor reference only (NOT Mirror time): Chrome History recorded ${history.historyVisitCount} visits (est. dwell from gaps ≈ ${Math.round((history.estimatedDwellSeconds || 0) / 60)} min) across ${history.historyDomainCount} sites today. Do not treat History dwell as measured time-on-site.`
-      : "";
+  const historyContext = buildHistoryContext(metrics, history);
   const prompt = buildPrompt(
     dateStr,
     buildDomainSummary(entries, domainHints),
     openMinutes,
     activeMinutes,
     goalText,
-    historyNote
+    historyContext
   );
 
   const response = await fetch(OPENROUTER_API_URL, {

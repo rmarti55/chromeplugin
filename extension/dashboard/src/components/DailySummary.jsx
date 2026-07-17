@@ -15,6 +15,7 @@ export function DailySummary({
   topDomains,
   analyzedAt,
   estimatedCostUsd,
+  historyAlignment,
 }) {
   const lastSummarized = formatAnalyzedAt(analyzedAt);
   const showGap = openSeconds > 0 && activeSeconds > 0 && openSeconds > activeSeconds * 1.25;
@@ -46,6 +47,16 @@ export function DailySummary({
           Chrome was open {formatDuration(openSeconds)}; {formatDuration(activeSeconds)} had recent
           input. Reading or time in other apps explains the gap.
         </p>
+      )}
+
+      {historyAlignment?.available && historyAlignment.summary && (
+        <div className="mb-4 p-3 rounded-lg bg-slate-900/50 border border-slate-700/50">
+          <span className="text-xs uppercase tracking-wide text-slate-500">History vs Mirror</span>
+          <p className="text-sm text-slate-400 mt-1">{historyAlignment.summary}</p>
+          {historyAlignment.trend && (
+            <p className="text-xs text-slate-500 mt-2">{historyAlignment.trend}</p>
+          )}
+        </div>
       )}
 
       {summary && <p className="text-slate-300 leading-relaxed mb-4">{summary}</p>}

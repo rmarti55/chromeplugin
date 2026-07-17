@@ -13,7 +13,6 @@ import { CategoryChart } from "./components/CategoryChart.jsx";
 import { ThemeList } from "./components/ThemeList.jsx";
 import { Timeline } from "./components/Timeline.jsx";
 import { SessionsList } from "./components/SessionsList.jsx";
-import { HistoryReference } from "./components/HistoryReference.jsx";
 import { LiveStatus } from "./components/LiveStatus.jsx";
 import { Settings } from "./components/Settings.jsx";
 
@@ -191,6 +190,7 @@ export default function App() {
               topDomains={data.topDomains}
               analyzedAt={analysis.analyzedAt}
               estimatedCostUsd={analysis.estimatedCostUsd}
+              historyAlignment={data.historyAlignment}
             />
           ) : (
             <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
@@ -198,6 +198,14 @@ export default function App() {
                 Tracked and categorized locally. Click{" "}
                 <span className="text-indigo-400 font-medium">Summarize</span> for your AI narrative.
               </p>
+              {data.historyAlignment?.available && data.historyAlignment.summary && (
+                <p className="text-sm text-slate-500 mt-3 p-3 rounded-lg bg-slate-900/50 border border-slate-700/50">
+                  {data.historyAlignment.summary}
+                  {data.historyAlignment.trend && (
+                    <span className="block text-xs mt-1">{data.historyAlignment.trend}</span>
+                  )}
+                </p>
+              )}
             </div>
           )}
 
@@ -208,11 +216,10 @@ export default function App() {
               sessions={data.sessions}
               categoryCache={cache}
               domainHints={data.domainHints}
+              historyAlignment={data.historyAlignment}
             />
             {analysis ? <ThemeList themes={analysis.themes} /> : null}
           </div>
-
-          <HistoryReference alignment={data.historyAlignment} />
 
           <Timeline timeline={data.timeline} />
         </div>

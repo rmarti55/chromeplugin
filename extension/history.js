@@ -1,7 +1,11 @@
 // Read-only Chrome History for alignment with the event log.
 // History records visit timestamps; dwell is estimated from gaps between visits.
 
-import { dayBounds } from "./db.js";
+import { dayBounds, toDateStr } from "./db.js";
+import { rollupNoiseRows } from "./noise.js";
+
+const CACHE_KEY_PREFIX = "historySnapshot:";
+const CACHE_FRESH_MS = 55 * 60 * 1000;
 
 const ALIGN_RATIO = 2;
 const SESSION_GAP_MS = 30 * 60 * 1000;
@@ -63,7 +67,40 @@ export function estimateDwellFromVisits(visits, dayEndTs) {
   return { totalSeconds: Math.round(totalMs / 1000), byDomain };
 }
 
-export async function getHistoryForDay(dateStr, now = Date.now()) {
+function historyCacheKey(dateStr) {
+  return `${CACHE_KEY_PREFIX}${dateStr}`;
+}
+
+async function readHistoryCache(dateStr) {
+  if (typeof chrome === "undefined" || !chrome.storage?.local) return null;
+  const key = historyCacheKey(dateStr);
+  const data = await new Promise((resolve) => {
+    chrome.storage.local.get(key, (d) => resolve(d[key] || null));
+  });
+  if (!data?.payload || !data.cachedAt) return null;
+  return data;
+}
+
+async function writeHistoryCache(dateStr, payload, cachedAt = Date.now()) {
+  if (typeof chrome === "undefined" || !chrome.storage?.local) return;
+  await new Promise((resolve) => {
+    chrome.storage.local.set({ [historyCacheKey(dateStr)]: { payload, cachedAt } }, resolve);
+  });
+}
+
+function cacheIsFresh(cached, dateStr, now) {
+  if (!cached) return false;
+  if (dateStr !== toDateStr(now)) return true;
+  return now - cached.cachedAt < CACHE_FRESH_MS;
+}
+
+export async function refreshHistoryCacheForDate(dateStr, now = Date.now()) {
+  const payload = await fetchHistoryForDay(dateStr, now);
+  await writeHistoryCache(dateStr, payload, now);
+  return payload;
+}
+
+export async function getHistoryForDay(dateStr, now = Date.now(), { preferCache = true } = {}) {
   if (typeof chrome === "undefined" || !chrome.history?.search) {
     return {
       domains: [],
@@ -74,6 +111,19 @@ export async function getHistoryForDay(dateStr, now = Date.now()) {
     };
   }
 
+  if (preferCache) {
+    const cached = await readHistoryCache(dateStr);
+    if (cacheIsFresh(cached, dateStr, now)) {
+      return cached.payload;
+    }
+  }
+
+  const payload = await fetchHistoryForDay(dateStr, now);
+  await writeHistoryCache(dateStr, payload, now);
+  return payload;
+}
+
+async function fetchHistoryForDay(dateStr, now = Date.now()) {
   const { start, end } = dayBounds(dateStr);
   const endTs = Math.min(end, now);
 
@@ -236,10 +286,13 @@ export function compareDayToHistory(metrics, history) {
 
   rows.sort(
     (a, b) =>
+      b.mirrorActiveSeconds - a.mirrorActiveSeconds ||
       b.historyVisits - a.historyVisits ||
-      b.historyDwellSeconds - a.historyDwellSeconds ||
-      b.mirrorActiveSeconds - a.mirrorActiveSeconds
+      b.historyDwellSeconds - a.historyDwellSeconds
   );
+
+  const { rows: filteredRows, noiseRow } = rollupNoiseRows(rows);
+  const displayRows = noiseRow ? [...filteredRows, noiseRow] : filteredRows;
 
   const openMin = Math.round((metrics.openSeconds || 0) / 60);
   const activeMin = Math.round((metrics.activeSeconds || 0) / 60);
@@ -247,5 +300,40 @@ export function compareDayToHistory(metrics, history) {
   const summary = `History est. dwell ≈ ${hDwellMin}m (${history.historyVisitCount} visits) | Mirror Chrome open ${openMin}m | Active use ${activeMin}m | ${mirrorNavTotal} navigations.`;
   const trend = trendNote(history, metrics);
 
-  return { summary, trend, rows, available: true };
+  return { summary, trend, rows: displayRows, available: true };
+}
+
+function misalignmentScore(row) {
+  if (row.isNoiseRollup) return 0;
+  if (row.mirrorActiveSeconds === 0 && row.mirrorVisits === 0 && row.historyVisits > 0) {
+    return 1000 + row.historyVisits;
+  }
+  if (row.alignment === "mirror_low") return 500 + row.historyVisits;
+  if (row.alignment === "dwell_high") return 200 + row.historyDwellSeconds;
+  if (row.alignment === "history_low") return 100 + row.mirrorVisits;
+  return 0;
+}
+
+/** Top domains where History and Mirror disagree — for AI context only. */
+export function getTopMisalignedDomains(alignment, history, limit = 5) {
+  if (!alignment?.available) return [];
+  const titlesByDomain = new Map();
+  for (const d of history?.domains || []) {
+    if (d.titles?.length) titlesByDomain.set(d.domain, d.titles.slice(0, 3));
+  }
+
+  return [...(alignment.rows || [])]
+    .filter((r) => !r.isNoiseRollup && misalignmentScore(r) > 0)
+    .sort((a, b) => misalignmentScore(b) - misalignmentScore(a))
+    .slice(0, limit)
+    .map((r) => ({
+      domain: r.domain,
+      alignment: r.alignment,
+      historyVisits: r.historyVisits,
+      historyDwellMinutes: Math.round((r.historyDwellSeconds || 0) / 60),
+      mirrorActiveMinutes: Math.round(r.mirrorActiveSeconds / 60),
+      mirrorVisits: r.mirrorVisits,
+      titles: titlesByDomain.get(r.domain) || [],
+      historyOnly: r.mirrorActiveSeconds === 0 && r.mirrorVisits === 0 && r.historyVisits > 0,
+    }));
 }
