@@ -246,8 +246,12 @@ async function maybeAutoSummarize() {
 // --- Desktop live status cache (Mac companion heartbeat) --------------------
 
 const DESKTOP_LIVE_REFRESH_MS = 2000;
+const DESKTOP_LIVE_BACKOFF_MS = [2000, 5000, 15000, 60000];
 
 let desktopHostKnown = false;
+let desktopLivePollTimer = null;
+let desktopLivePollBackoffStep = 0;
+let desktopLiveRefreshInFlight = false;
 
 let desktopLiveCache = {
   fetchedAt: 0,
@@ -268,11 +272,23 @@ function liveCacheSnapshot() {
   };
 }
 
+function scheduleDesktopLivePoll(delayMs) {
+  if (desktopLivePollTimer) clearTimeout(desktopLivePollTimer);
+  desktopLivePollTimer = setTimeout(() => {
+    desktopLivePollTimer = null;
+    refreshDesktopLiveCache().catch(() => {});
+  }, delayMs);
+}
+
 async function refreshDesktopLiveCache() {
+  if (desktopLiveRefreshInFlight) return;
+  desktopLiveRefreshInFlight = true;
+
   const start = performance.now();
   try {
     const data = await getDesktopLiveStatus();
     desktopHostKnown = true;
+    desktopLivePollBackoffStep = 0;
     desktopLiveCache = {
       fetchedAt: Date.now(),
       hostInstalled: true,
@@ -286,6 +302,7 @@ async function refreshDesktopLiveCache() {
     dmRateLimited("liveCache.ok", 30_000, () => {
       dmLog("sw", "liveCache.poll", { ok: true, ms, ...liveCacheSnapshot() });
     });
+    scheduleDesktopLivePoll(DESKTOP_LIVE_REFRESH_MS);
   } catch (err) {
     desktopLiveCache = {
       fetchedAt: Date.now(),
@@ -297,6 +314,17 @@ async function refreshDesktopLiveCache() {
     dmOnChange("liveCache", liveCacheSnapshot(), (state) => {
       dmError("sw", "liveCache.update", { ok: false, ms, err: errMsg(err), ...state });
     });
+    const backoff =
+      DESKTOP_LIVE_BACKOFF_MS[
+        Math.min(desktopLivePollBackoffStep, DESKTOP_LIVE_BACKOFF_MS.length - 1)
+      ];
+    desktopLivePollBackoffStep = Math.min(
+      desktopLivePollBackoffStep + 1,
+      DESKTOP_LIVE_BACKOFF_MS.length - 1
+    );
+    scheduleDesktopLivePoll(backoff);
+  } finally {
+    desktopLiveRefreshInFlight = false;
   }
 }
 
@@ -308,10 +336,9 @@ function markDesktopHostKnown() {
 }
 
 function startDesktopLivePolling() {
-  refreshDesktopLiveCache().catch(() => {});
   if (startDesktopLivePolling.started) return;
   startDesktopLivePolling.started = true;
-  setInterval(() => refreshDesktopLiveCache().catch(() => {}), DESKTOP_LIVE_REFRESH_MS);
+  refreshDesktopLiveCache().catch(() => {});
 }
 startDesktopLivePolling.started = false;
 

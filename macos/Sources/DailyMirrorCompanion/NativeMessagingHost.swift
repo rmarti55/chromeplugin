@@ -1,11 +1,14 @@
 import Foundation
 
 enum NativeMessagingHost {
+    private static var running = true
+
     static func run() {
         FileHandle.standardInput.readabilityHandler = { handle in
             let lengthData = handle.readData(ofLength: 4)
             guard lengthData.count == 4 else {
-                exit(0)
+                stop()
+                return
             }
             let length = lengthData.withUnsafeBytes { raw in
                 raw.load(as: UInt32.self).littleEndian
@@ -23,7 +26,15 @@ enum NativeMessagingHost {
             let response = handleMessage(message)
             writeResponse(response)
         }
-        RunLoop.main.run()
+
+        while running {
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.25))
+        }
+    }
+
+    private static func stop() {
+        FileHandle.standardInput.readabilityHandler = nil
+        running = false
     }
 
     private static func handleMessage(_ message: [String: Any]) -> [String: Any] {
@@ -73,5 +84,6 @@ enum NativeMessagingHost {
         let lengthData = Data(bytes: &length, count: 4)
         FileHandle.standardOutput.write(lengthData)
         FileHandle.standardOutput.write(data)
+        fflush(stdout)
     }
 }
