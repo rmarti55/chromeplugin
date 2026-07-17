@@ -1,6 +1,12 @@
 import Foundation
 
 enum MirrorConstants {
+    static let companionVersion = "0.1.0"
+    static let bundleIdentifier = "com.dailymirror.companion"
+    static let installedAppName = "Daily Mirror.app"
+    static let nativeHostName = "com.dailymirror.companion"
+    static let maxNativeMessageBytes = 1_048_576
+
     /// Match extension/constants.js — 5 minutes
     static let idleSeconds: TimeInterval = 300
     static let maxGapSeconds: TimeInterval = 30 * 60

@@ -1,38 +1,32 @@
 import { formatDuration } from "../../../db.js";
 import { LABELS } from "../../../labels.js";
+import { liveDotClass, livePingClass, liveStatusText, showMacLiveRow } from "../../../live.js";
 
 function LiveDot({ status }) {
+  const offline = status === "offline";
   const paused = status === "paused";
-  const idle = status === "idle";
-  const dot = paused ? "bg-amber-500" : idle ? "bg-sky-500" : "bg-green-500";
+  const showPing = !offline && !paused;
   return (
     <span className="relative inline-flex h-2 w-2 shrink-0">
-      {!paused && (
+      {showPing && (
         <span
-          className={`absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping ${idle ? "bg-sky-500" : "bg-green-500"}`}
+          className={`absolute inline-flex h-full w-full rounded-full opacity-75 animate-ping ${livePingClass(status)}`}
         />
       )}
-      <span className={`relative inline-flex rounded-full h-2 w-2 ${dot}`} />
+      <span className={`relative inline-flex rounded-full h-2 w-2 ${liveDotClass(status)}`} />
     </span>
   );
 }
 
-function MacLiveLine({ live }) {
-  if (!live?.macHostInstalled) return null;
+function MacLiveLine({ live, macDayAvailable }) {
+  if (!showMacLiveRow(live, macDayAvailable)) return null;
 
-  const paused = live.status === "paused";
-  const idle = live.status === "idle";
-
-  let text = live.message || LABELS.macNotCapturing;
-  if (!paused && !idle && live.appName) {
-    text = `${LABELS.usingMacOn} ${live.appName}`;
-  } else if (!paused && !idle && live.domain) {
-    text = `${LABELS.usingChromeOn} ${live.domain}`;
-  }
+  const text = liveStatusText(live);
+  const offline = live?.status === "offline";
 
   return (
-    <div className="flex items-center justify-end gap-1.5 text-xs text-slate-400">
-      <LiveDot status={live.status} />
+    <div className={`flex items-center justify-end gap-1.5 text-xs ${offline ? "text-red-400" : "text-slate-400"}`}>
+      <LiveDot status={live?.status || "offline"} />
       <span className="truncate max-w-[220px]" title={text}>
         {text}
       </span>
@@ -48,7 +42,7 @@ export function DayClocks({ openSeconds, activeSeconds, desktop, layout = "stack
     return (
       <div className={layout === "inline" ? "space-y-1 text-right" : "space-y-2 text-right shrink-0"}>
         <div className="space-y-1" title={`${LABELS.tipOnMac} ${LABELS.tipUsingMac}`}>
-          <MacLiveLine live={live} />
+          <MacLiveLine live={live} macDayAvailable={showMac} />
           <div className="tabular-nums">
             <span className="text-indigo-400 font-semibold text-sm">
               {formatDuration(desktop.devicePresenceSeconds || 0)}
@@ -56,9 +50,7 @@ export function DayClocks({ openSeconds, activeSeconds, desktop, layout = "stack
             <span className="text-slate-600 mx-1.5">·</span>
             <span className="text-slate-300 text-sm">{formatDuration(desktop.deviceActiveSeconds || 0)}</span>
           </div>
-          <div className="text-[10px] text-slate-600 uppercase tracking-wide">
-            {LABELS.todayOnMac} · {LABELS.onMac} · {LABELS.usingMac}
-          </div>
+          <div className="text-[10px] text-slate-600 uppercase tracking-wide">{LABELS.todayOnMac}</div>
         </div>
         <div className="pt-1.5 border-t border-slate-700/50" title={LABELS.tipBrowsingChapter}>
           <div className="text-[10px] uppercase tracking-wide text-slate-600 mb-0.5">{LABELS.browsingChapter}</div>

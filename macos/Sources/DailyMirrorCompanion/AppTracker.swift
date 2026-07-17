@@ -8,6 +8,8 @@ final class AppTracker: ObservableObject {
     @Published private(set) var todayPresenceSeconds = 0
     @Published private(set) var todayActiveSeconds = 0
     @Published private(set) var topApps: [AppSession] = []
+    @Published private(set) var captureStatus = "starting"
+    @Published private(set) var bridgeStatus = BridgeStatus.label
 
     private var idleTimer: Timer?
     private var isIdle = false
@@ -28,9 +30,12 @@ final class AppTracker: ObservableObject {
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             self?.refreshToday()
             self?.writeLiveStatus()
+            self?.refreshBridgeStatus()
         }
         refreshToday()
         writeLiveStatus()
+        refreshBridgeStatus()
+        publishCaptureStatus()
     }
 
     private func subscribeWorkspace() {
@@ -118,11 +123,35 @@ final class AppTracker: ObservableObject {
         } else {
             status = "capturing"
         }
+        publishCaptureStatus(status)
         LiveStatusStore.shared.write(
             status: status,
             bundleId: currentBundleId,
             appName: currentAppName
         )
+    }
+
+    private func publishCaptureStatus(_ status: String? = nil) {
+        let value: String
+        if let status {
+            value = status
+        } else if isLocked {
+            value = "locked"
+        } else if isIdle {
+            value = "idle"
+        } else {
+            value = "capturing"
+        }
+        DispatchQueue.main.async { [weak self] in
+            self?.captureStatus = value
+        }
+    }
+
+    func refreshBridgeStatus() {
+        let label = BridgeStatus.label
+        DispatchQueue.main.async { [weak self] in
+            self?.bridgeStatus = label
+        }
     }
 
     private func append(type: String, bundleId: String? = nil, appName: String? = nil) {

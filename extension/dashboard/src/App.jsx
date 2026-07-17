@@ -109,6 +109,7 @@ export default function App() {
   const [summarizing, setSummarizing] = useState(false);
   const [msg, setMsg] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [macLive, setMacLive] = useState(null);
   const cache = useCategoryCache();
   const { data, loading, reload } = useDayData(date, cache);
 
@@ -238,12 +239,14 @@ export default function App() {
                   openSeconds={data.openSeconds}
                   activeSeconds={data.activeSeconds}
                   desktop={data.desktop}
+                  onLiveChange={setMacLive}
                 />
               )}
               <DesktopApps
                 desktop={data.desktop}
                 chromeOpenSeconds={data.openSeconds}
                 chromeActiveSeconds={data.activeSeconds}
+                live={macLive}
               />
               {analysis ? (
                 <DailySummary

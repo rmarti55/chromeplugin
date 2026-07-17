@@ -7,9 +7,16 @@ enum NativeMessagingHost {
             guard lengthData.count == 4 else {
                 exit(0)
             }
-            let length = lengthData.withUnsafeBytes { $0.load(as: UInt32.self) }
+            let length = lengthData.withUnsafeBytes { raw in
+                raw.load(as: UInt32.self).littleEndian
+            }
+            guard length > 0, length <= MirrorConstants.maxNativeMessageBytes else {
+                writeResponse(["error": "Invalid message length"])
+                return
+            }
             let messageData = handle.readData(ofLength: Int(length))
-            guard let message = try? JSONSerialization.jsonObject(with: messageData) as? [String: Any] else {
+            guard messageData.count == Int(length),
+                  let message = try? JSONSerialization.jsonObject(with: messageData) as? [String: Any] else {
                 writeResponse(["error": "Invalid JSON"])
                 return
             }
@@ -62,7 +69,7 @@ enum NativeMessagingHost {
 
     private static func writeResponse(_ obj: [String: Any]) {
         guard let data = try? JSONSerialization.data(withJSONObject: obj) else { return }
-        var length = UInt32(data.count)
+        var length = UInt32(data.count).littleEndian
         let lengthData = Data(bytes: &length, count: 4)
         FileHandle.standardOutput.write(lengthData)
         FileHandle.standardOutput.write(data)

@@ -1,5 +1,5 @@
 import { getDayMetrics, aggregateByDomain, formatDuration, toDateStr } from "./db.js";
-import { getLiveStatus } from "./live.js";
+import { getLiveStatus, liveStatusText } from "./live.js";
 import { mergeDesktopWithChrome } from "./desktop-merge.js";
 import { LABELS } from "./labels.js";
 
@@ -34,9 +34,15 @@ async function renderLive() {
   const dot = $("dot");
   const text = $("liveText");
   try {
-    const a = await getLiveStatus(Date.now());
+    const date = todayStr();
+    const desktopRaw = await fetchDesktopDay(date);
+    const macDayAvailable = !!(desktopRaw?.apps?.length);
+    const a = await getLiveStatus(Date.now(), { macDayAvailable });
     text.textContent = "";
-    if (a.status === "paused") {
+    if (a.status === "offline") {
+      dot.className = "dot offline";
+      text.appendChild(document.createTextNode(a.message || LABELS.macOffline));
+    } else if (a.status === "paused") {
       dot.className = "dot paused";
       text.appendChild(document.createTextNode(a.message || LABELS.inBackground));
     } else if (a.status === "idle") {
@@ -58,7 +64,7 @@ async function renderLive() {
       text.appendChild(app);
     } else {
       dot.className = "dot capturing";
-      text.appendChild(document.createTextNode(a.message || LABELS.inChrome));
+      text.appendChild(document.createTextNode(liveStatusText(a) || LABELS.inChrome));
     }
   } catch {
     dot.className = "dot capturing";

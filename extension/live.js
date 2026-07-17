@@ -1,12 +1,15 @@
 // Live status for the popup and dashboard.
 //
 // Mac-first when the companion heartbeat is fresh (GET_DESKTOP_LIVE).
-// Falls back to Chrome focus + idle when the native host is unavailable.
+// Red offline when Mac day data exists but capture is down.
+// Falls back to Chrome-only when the native host was never set up.
 
 import { getCurrentActivity } from "./db.js";
 import { IDLE_SECONDS } from "./constants.js";
 import { LABELS } from "./labels.js";
 import { isChromeApp } from "./desktop-bridge.js";
+
+const LIVE_FETCH_TIMEOUT_MS = 2000;
 
 function host(u) {
   try {
@@ -17,12 +20,21 @@ function host(u) {
 }
 const isWeb = (u) => !!u && /^https?:\/\//.test(u);
 
+function macOffline(message) {
+  return {
+    status: "offline",
+    message,
+    macHostInstalled: true,
+    macLiveFresh: false,
+  };
+}
+
 async function fetchDesktopLiveFromBackground() {
   if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
     return null;
   }
   return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(null), 800);
+    const timer = setTimeout(() => resolve(null), LIVE_FETCH_TIMEOUT_MS);
     chrome.runtime.sendMessage({ type: "GET_DESKTOP_LIVE" }, (res) => {
       clearTimeout(timer);
       if (chrome.runtime.lastError || !res?.ok) {
@@ -71,32 +83,11 @@ async function getChromeLiveStatus(now = Date.now()) {
   return { status: "capturing", message: LABELS.inChrome };
 }
 
-export async function getLiveStatus(now = Date.now()) {
-  const chromeLive = await getChromeLiveStatus(now);
-  const macEnvelope = await fetchDesktopLiveFromBackground();
-
+function liveFromMacPayload(macLive, chromeLive) {
   const macMeta = {
-    macHostInstalled: !!macEnvelope?.hostInstalled,
-    macLiveFresh: !!macEnvelope?.data?.ok,
+    macHostInstalled: true,
+    macLiveFresh: true,
   };
-
-  // Native host not installed or unreachable — Chrome-only live status.
-  if (!macEnvelope?.hostInstalled) {
-    return { ...chromeLive, ...macMeta };
-  }
-
-  const macLive = macEnvelope.data;
-
-  // Host responds but menu bar tracker is not writing a fresh heartbeat.
-  if (!macLive?.ok) {
-    return {
-      status: "paused",
-      reason: macLive?.reason || "stale",
-      message: LABELS.macNotCapturing,
-      ...macMeta,
-    };
-  }
-
   const { status, bundleId, appName } = macLive;
 
   if (status === "locked") {
@@ -106,7 +97,6 @@ export async function getLiveStatus(now = Date.now()) {
     return { status: "idle", reason: "idle", message: LABELS.macIdle, ...macMeta };
   }
 
-  // Mac capturing — prefer Chrome site detail when Chrome is frontmost.
   if (isChromeApp(bundleId)) {
     if (chromeLive.domain) {
       return {
@@ -126,4 +116,58 @@ export async function getLiveStatus(now = Date.now()) {
     message: LABELS.usingMacOn,
     ...macMeta,
   };
+}
+
+export async function getLiveStatus(now = Date.now(), { macDayAvailable = false } = {}) {
+  const chromeLive = await getChromeLiveStatus(now);
+  const macEnvelope = await fetchDesktopLiveFromBackground();
+
+  const hostKnown = !!(macEnvelope?.hostInstalled || macDayAvailable);
+
+  if (!hostKnown) {
+    return { ...chromeLive, macHostInstalled: false, macLiveFresh: false };
+  }
+
+  if (!macEnvelope) {
+    return macOffline(LABELS.macHostBroken);
+  }
+
+  if (!macEnvelope.hostReachable) {
+    return macOffline(LABELS.macHostBroken);
+  }
+
+  const macLive = macEnvelope.data;
+
+  if (!macLive?.ok) {
+    return macOffline(LABELS.macOffline);
+  }
+
+  return liveFromMacPayload(macLive, chromeLive);
+}
+
+/** Shared dot color classes for dashboard live indicators. */
+export function liveDotClass(status) {
+  if (status === "offline") return "bg-red-500";
+  if (status === "paused") return "bg-amber-500";
+  if (status === "idle") return "bg-sky-500";
+  return "bg-green-500";
+}
+
+export function livePingClass(status) {
+  if (status === "idle") return "bg-sky-500";
+  return "bg-green-500";
+}
+
+export function liveStatusText(live) {
+  if (!live) return "";
+  if (live.status === "offline" || live.status === "paused" || live.status === "idle") {
+    return live.message || LABELS.inBackground;
+  }
+  if (live.domain) return `${LABELS.usingChromeOn} ${live.domain}`;
+  if (live.appName) return `${LABELS.usingMacOn} ${live.appName}`;
+  return live.message || LABELS.inChrome;
+}
+
+export function showMacLiveRow(live, macDayAvailable) {
+  return !!(live?.macHostInstalled || macDayAvailable);
 }

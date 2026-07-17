@@ -1,7 +1,7 @@
 {
   "name": "com.dailymirror.companion",
   "description": "Daily Mirror macOS companion — desktop app activity for Chrome extension",
-  "path": "ABSOLUTE_PATH_TO_macos/Scripts/daily-mirror-host.sh",
+  "path": "ABSOLUTE_PATH_TO/Applications/Daily Mirror.app/Contents/Helpers/native-host",
   "type": "stdio",
   "allowed_origins": [
     "chrome-extension://EXTENSION_ID/"

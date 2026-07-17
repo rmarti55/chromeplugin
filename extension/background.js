@@ -231,26 +231,39 @@ async function maybeAutoSummarize() {
 
 const DESKTOP_LIVE_REFRESH_MS = 2000;
 
+let desktopHostKnown = false;
+
 let desktopLiveCache = {
   fetchedAt: 0,
   hostInstalled: false,
+  hostReachable: false,
   data: null,
 };
 
 async function refreshDesktopLiveCache() {
   try {
     const data = await getDesktopLiveStatus();
+    desktopHostKnown = true;
     desktopLiveCache = {
       fetchedAt: Date.now(),
       hostInstalled: true,
+      hostReachable: true,
       data,
     };
   } catch {
     desktopLiveCache = {
       fetchedAt: Date.now(),
-      hostInstalled: false,
-      data: null,
+      hostInstalled: desktopHostKnown,
+      hostReachable: false,
+      data: desktopLiveCache.data,
     };
+  }
+}
+
+function markDesktopHostKnown() {
+  desktopHostKnown = true;
+  if (!desktopLiveCache.hostInstalled) {
+    desktopLiveCache = { ...desktopLiveCache, hostInstalled: true };
   }
 }
 
@@ -278,7 +291,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
   if (message.type === "GET_DESKTOP_DAY") {
     getDesktopDayMetrics(message.date)
-      .then((data) => sendResponse({ ok: true, data }))
+      .then((data) => {
+        markDesktopHostKnown();
+        sendResponse({ ok: true, data });
+      })
       .catch((err) => sendResponse({ ok: false, error: err.message }));
     return true;
   }

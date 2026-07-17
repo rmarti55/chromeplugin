@@ -14,10 +14,7 @@ final class EventStore {
     private let fileURL: URL
 
     private init() {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let dir = base.appendingPathComponent("DailyMirror", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        fileURL = dir.appendingPathComponent("events.jsonl")
+        fileURL = MirrorPaths.dailyMirrorDirectory.appendingPathComponent("events.jsonl")
         pruneOldEvents()
     }
 
@@ -26,14 +23,15 @@ final class EventStore {
             guard let line = try? JSONEncoder().encode(event),
                   var str = String(data: line, encoding: .utf8) else { return }
             str.append("\n")
+            guard let payload = str.data(using: .utf8) else { return }
             if FileManager.default.fileExists(atPath: fileURL.path) {
                 if let handle = try? FileHandle(forWritingTo: fileURL) {
                     handle.seekToEndOfFile()
-                    handle.write(str.data(using: .utf8)!)
+                    handle.write(payload)
                     try? handle.close()
                 }
             } else {
-                try? str.write(to: fileURL, atomically: true, encoding: .utf8)
+                try? payload.write(to: fileURL, options: .atomic)
             }
         }
     }
@@ -59,6 +57,16 @@ final class EventStore {
                 .split(separator: "\n", omittingEmptySubsequences: true)
                 .compactMap { try? JSONDecoder().decode(MirrorEvent.self, from: Data($0.utf8)) }
                 .filter { $0.ts < ts }
+                .max(by: { $0.ts < $1.ts })
+        }
+    }
+
+    func lastEvent() -> MirrorEvent? {
+        queue.sync {
+            guard let data = try? String(contentsOf: fileURL, encoding: .utf8) else { return nil }
+            return data
+                .split(separator: "\n", omittingEmptySubsequences: true)
+                .compactMap { try? JSONDecoder().decode(MirrorEvent.self, from: Data($0.utf8)) }
                 .max(by: { $0.ts < $1.ts })
         }
     }

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Preview Daily Mirror: bundle companion, install native host, load extension, open dashboard.
+ * Preview Daily Mirror: install companion, install native host, load extension, open dashboard.
  */
 import { spawn, execSync } from "child_process";
 import { mkdirSync, writeFileSync, existsSync } from "fs";
@@ -9,8 +9,9 @@ import { fileURLToPath } from "url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const EXT_PATH = join(ROOT, "extension");
-const APP_PATH = join(ROOT, "macos", "DailyMirrorCompanion.app");
-const HOST_SCRIPT = join(ROOT, "macos", "Scripts", "daily-mirror-host.sh");
+const MACOS_DIR = join(ROOT, "macos");
+const INSTALLED_APP = join(process.env.HOME, "Applications/Daily Mirror.app");
+const HOST_EXECUTABLE = join(INSTALLED_APP, "Contents/Helpers/native-host");
 const PROFILE = "/tmp/daily-mirror-preview";
 const PORT = 9222;
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
@@ -37,7 +38,7 @@ function installHost(extensionId, hostDir) {
   const manifest = {
     name: "com.dailymirror.companion",
     description: "Daily Mirror macOS companion",
-    path: HOST_SCRIPT,
+    path: HOST_EXECUTABLE,
     type: "stdio",
     allowed_origins: [`chrome-extension://${extensionId}/`],
   };
@@ -48,14 +49,17 @@ async function main() {
   console.log("Building dashboard…");
   execSync("npm run build", { cwd: join(ROOT, "extension", "dashboard"), stdio: "inherit" });
 
-  console.log("Bundling macOS companion…");
-  execSync("bash Scripts/bundle-app.sh", { cwd: join(ROOT, "macos"), stdio: "inherit" });
-  execSync(`chmod +x "${HOST_SCRIPT}"`);
+  console.log("Installing macOS companion to ~/Applications…");
+  execSync("bash Scripts/bundle-app.sh", { cwd: MACOS_DIR, stdio: "inherit" });
+  execSync(`ditto "${join(MACOS_DIR, "DailyMirrorCompanion.app")}" "${INSTALLED_APP}"`);
+  execSync(`xattr -dr com.apple.quarantine "${INSTALLED_APP}"`, { stdio: "ignore" });
 
-  if (!existsSync(HOST_SCRIPT)) throw new Error(`Missing host script: ${HOST_SCRIPT}`);
+  if (!existsSync(HOST_EXECUTABLE)) {
+    throw new Error(`Missing host helper: ${HOST_EXECUTABLE}`);
+  }
 
   console.log("Launching menu bar companion…");
-  spawn("open", [APP_PATH], { detached: true, stdio: "ignore" }).unref();
+  spawn("open", [INSTALLED_APP], { detached: true, stdio: "ignore" }).unref();
   await sleep(1500);
 
   console.log("Starting Chrome preview profile…");
@@ -99,6 +103,7 @@ async function main() {
   console.log("- Dashboard opened in preview Chrome profile");
   console.log("- For main Chrome: reload extension at chrome://extensions, then reopen dashboard");
   console.log(`- Native host installed for extension ID ${extensionId}`);
+  console.log(`- Installed app: ${INSTALLED_APP}`);
 }
 
 main().catch((err) => {

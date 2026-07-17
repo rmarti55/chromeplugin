@@ -21,9 +21,12 @@ export const LABELS = {
   inBackground: "Chrome in background",
   usingChromeOn: "Using Chrome ·",
   usingMacOn: "Using your Mac ·",
-  macNotCapturing: "Mac companion not capturing — launch the menu bar app",
+  macOffline: "Desktop app isn't running — open Daily Mirror from the menu bar",
+  macHostBroken: "Mac companion isn't working — reinstall the native host",
   macLive: "Mac live",
   todayOnMac: "Today",
+  macOfflineBanner: "Desktop app isn't running. Open Daily Mirror from the menu bar to resume live Mac tracking.",
+  macOfflineLaunchCmd: "open macos/DailyMirrorCompanion.app",
 
   // Unified day story
   browsingChapter: "Browsing",

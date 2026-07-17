@@ -9,7 +9,9 @@ Daily Mirror tracks **two clocks** from durable event logs. User-facing labels a
 | **In front** | **In Chrome** | **On your Mac** | App was on screen |
 | **In use** | **Using Chrome** | **Using your Mac** | In front + recent input |
 
-Live status uses Chrome official idle states where applicable: **idle**, **locked** (via [`chrome.idle`](https://developer.chrome.com/docs/extensions/reference/api/idle)). When the macOS companion is installed and its menu bar tracker is running, live status is **Mac-first**: the green/amber/sky dot reflects whole-Mac capture (frontmost app, idle, lock) via a heartbeat at `~/Library/Application Support/DailyMirror/live.json`, polled through native messaging `GET_LIVE`. Without the companion, live status falls back to Chrome-only focus and idle.
+Live status uses Chrome official idle states where applicable: **idle**, **locked** (via [`chrome.idle`](https://developer.chrome.com/docs/extensions/reference/api/idle)). When the macOS companion is installed and its menu bar tracker is running, live status is **Mac-first**: the green/amber/sky dot reflects whole-Mac capture (frontmost app, idle, lock) via a heartbeat at `~/Library/Application Support/DailyMirror/live.json`, polled through native messaging `GET_LIVE`. **Today** totals in the header are separate from live status — they come from the event log and can display even when live capture is off.
+
+When Mac day data exists but live capture is down, the dashboard shows a **red dot** and `Desktop app isn't running`. When the native host itself fails, the message is `Mac companion isn't working`.
 
 ## Internal vs user vs official
 

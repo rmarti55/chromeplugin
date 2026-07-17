@@ -19,6 +19,7 @@ web/out/
 .DS_Store
 *.pem
 macos/.build/
+macos/DailyMirrorCompanion.app/
 
 # vercel
 .vercel

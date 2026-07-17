@@ -13,6 +13,7 @@ final class LiveStatusStore {
 
     static let companionVersion = "0.1.0"
     static let staleThresholdMs: Int64 = 15_000
+    static let eventFallbackMs: Int64 = 45_000
 
     private let queue = DispatchQueue(label: "com.dailymirror.live", qos: .utility)
     private let fileURL: URL
@@ -48,16 +49,8 @@ final class LiveStatusStore {
         }
     }
 
-    /// Response shape for native messaging GET_LIVE.
-    static func bridgeResponse() -> [String: Any] {
-        guard let snapshot = shared.read() else {
-            return ["ok": false, "reason": "missing"]
-        }
-        let now = Int64(Date().timeIntervalSince1970 * 1000)
-        if now - snapshot.ts > staleThresholdMs {
-            return ["ok": false, "reason": "stale", "ts": snapshot.ts]
-        }
-        return [
+    private static func livePayload(from snapshot: LiveStatusSnapshot) -> [String: Any] {
+        [
             "ok": true,
             "status": snapshot.status,
             "bundleId": snapshot.bundleId as Any,
@@ -65,5 +58,49 @@ final class LiveStatusStore {
             "ts": snapshot.ts,
             "version": snapshot.version,
         ]
+    }
+
+    private static func statusFromEvent(_ event: MirrorEvent) -> String {
+        switch event.type {
+        case "idle":
+            return "idle"
+        case "locked":
+            return "locked"
+        default:
+            return "capturing"
+        }
+    }
+
+    private static func fallbackFromEvents() -> [String: Any]? {
+        guard let event = EventStore.shared.lastEvent() else { return nil }
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        guard now - event.ts <= eventFallbackMs else { return nil }
+        return [
+            "ok": true,
+            "status": statusFromEvent(event),
+            "bundleId": event.bundleId as Any,
+            "appName": event.appName as Any,
+            "ts": event.ts,
+            "version": companionVersion,
+            "source": "events",
+        ]
+    }
+
+    /// Response shape for native messaging GET_LIVE.
+    static func bridgeResponse() -> [String: Any] {
+        if let snapshot = shared.read() {
+            let now = Int64(Date().timeIntervalSince1970 * 1000)
+            if now - snapshot.ts <= staleThresholdMs {
+                return livePayload(from: snapshot)
+            }
+            if let fallback = fallbackFromEvents() {
+                return fallback
+            }
+            return ["ok": false, "reason": "stale", "ts": snapshot.ts]
+        }
+        if let fallback = fallbackFromEvents() {
+            return fallback
+        }
+        return ["ok": false, "reason": "missing"]
     }
 }

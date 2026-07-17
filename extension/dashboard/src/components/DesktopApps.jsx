@@ -1,7 +1,7 @@
 import { formatDuration } from "../../../db.js";
 import { LABELS, appTimeLabel } from "../../../labels.js";
 
-export function DesktopApps({ desktop, chromeOpenSeconds, chromeActiveSeconds }) {
+export function DesktopApps({ desktop, chromeOpenSeconds, chromeActiveSeconds, live }) {
   if (!desktop?.available) {
     return (
       <div className="bg-slate-800/40 rounded-xl p-5 border border-slate-700/40 border-dashed">
@@ -15,9 +15,17 @@ export function DesktopApps({ desktop, chromeOpenSeconds, chromeActiveSeconds })
   }
 
   const { otherApps, chromeApp, syncedDevices } = desktop;
+  const macOffline = live?.status === "offline";
 
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-5">
+      {macOffline && (
+        <div className="rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+          <p className="font-medium mb-1">{LABELS.macOfflineBanner}</p>
+          <code className="text-xs text-red-300/90 break-all">{LABELS.macOfflineLaunchCmd}</code>
+        </div>
+      )}
+
       <div>
         <h2 className="text-lg font-semibold text-slate-100 mb-1" title={LABELS.tipOtherApps}>
           {LABELS.otherAppsToday}
