@@ -11,6 +11,7 @@ writes you an honest 3–4 sentence summary measured against your own goals.
   stored only on your device. Your activity is never sent anywhere except the AI provider you
   chose, and only when you ask for a summary.
 - **Honest time.** Two clocks from the same event log: **Chrome open** (browser in front) and **Active use** (in front + recent input). Site breakdowns use active use; the day total leads with Chrome open. See [`docs/time-model.md`](docs/time-model.md).
+- **Desktop companion (optional).** The macOS menu bar app fills the “other apps” gap and merges into the dashboard via native messaging. Optional iCloud sync enables an iPhone viewer.
 
 ## Architecture
 
@@ -25,6 +26,9 @@ Everything is the Chrome extension in `extension/`:
 | `ai.js` | The daily narrative: BYO-key OpenRouter call, goal-aware prompt, JSON parse + save. |
 | `popup.html` / `popup.js` | Settings (API key, model, weekly goals) + "Summarize today" / "Open dashboard". |
 | `dashboard/` | Vite + React + Recharts dashboard, opened as a full-page tab. Reads IndexedDB directly and renders the narrative, category charts, per-site time, themes, and timeline. |
+| `macos/` | Optional menu bar companion — tracks desktop app focus time, native messaging bridge to Chrome, optional CloudKit sync. See [`macos/README.md`](macos/README.md). |
+| `ios/` | Optional CloudKit viewer scaffold (read synced day aggregates on iPhone). See [`ios/README.md`](ios/README.md). |
+| `desktop-bridge.js` / `desktop-merge.js` | Chrome ↔ Mac integration: native messaging, dedup rules, merged timeline. |
 
 There was a **previous** server-based version (Next.js + Vercel KV + OpenRouter + Google Data
 Portability import). It is parked, lives in a separate local `web/` project, and is intentionally
@@ -45,11 +49,26 @@ npm run build
 Then click the toolbar icon, paste an [OpenRouter API key](https://openrouter.ai/keys), write
 your weekly goals, browse for a bit, and hit **Summarize today**.
 
+### macOS companion (optional)
+
+```bash
+cd macos
+swift build -c release
+.build/release/DailyMirrorCompanion &   # menu bar tracker
+
+# After loading the extension, install native messaging (replace EXT_ID):
+chmod +x Scripts/install-native-host.sh
+./Scripts/install-native-host.sh YOUR_CHROME_EXTENSION_ID
+```
+
+Restart Chrome. The dashboard **Overview** tab shows desktop apps alongside Chrome site detail.
+
+
 ## How it works
 
 1. As you browse, the service worker records events (`activate`, `urlchange`, `focus`, `blur`,
    `idle`, `active`) to IndexedDB with timestamps. **Chrome open** accrues while Chrome is the
-   focused app; **Active use** also pauses after ~60s without input or when you switch apps.
+   focused app; **Active use** also pauses after ~5 min without input or when you switch apps.
 2. The dashboard reduces those events into per-URL sessions with measured seconds, then buckets
    them locally into categories — no AI needed for the basic view.
 3. On demand (or automatically about once an hour when you've been active), the day's
@@ -73,5 +92,6 @@ Avoid OpenRouter `:free` promo models — they are rate-limited and can disappea
 - **host_permissions: openrouter.ai** — the only outbound call: sends the day's activity to the
   AI provider you configured, using your own key, to generate the summary.
 - **storage** — settings and (via IndexedDB) all activity are stored locally; clearable anytime.
+- **nativeMessaging** — optional local bridge to the macOS companion for desktop app time.
 
 No analytics. No server. No screenshots. No team/billing features.

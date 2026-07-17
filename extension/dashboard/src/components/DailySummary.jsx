@@ -13,6 +13,7 @@ export function DailySummary({
   activeSeconds,
   analyzedAt,
   showClocks = true,
+  desktop,
 }) {
   const lastSummarized = formatAnalyzedAt(analyzedAt);
 
@@ -23,12 +24,26 @@ export function DailySummary({
         <div className="text-right">
           {showClocks && (
             <>
-              <span className="text-sm text-slate-400 block">
-                {formatDuration(openSeconds || 0)} Chrome open
-              </span>
-              <span className="text-xs text-slate-500 block">
-                Active use: {formatDuration(activeSeconds || 0)}
-              </span>
+              {desktop?.available ? (
+                <>
+                  <span className="text-sm text-slate-400 block">
+                    {formatDuration(desktop.devicePresenceSeconds || 0)} device presence
+                  </span>
+                  <span className="text-xs text-slate-500 block">
+                    Chrome open: {formatDuration(openSeconds || 0)} · active:{" "}
+                    {formatDuration(activeSeconds || 0)}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-sm text-slate-400 block">
+                    {formatDuration(openSeconds || 0)} Chrome open
+                  </span>
+                  <span className="text-xs text-slate-500 block">
+                    Active use: {formatDuration(activeSeconds || 0)}
+                  </span>
+                </>
+              )}
             </>
           )}
           {lastSummarized && (

@@ -8,12 +8,17 @@ import {
 } from "../../db.js";
 import { getHistoryForDay, compareDayToHistory } from "../../history.js";
 import { categorizeSessions } from "../../categorize.js";
+import { mergeDesktopWithChrome } from "../../desktop-merge.js";
+import { mergeCategories } from "../../categorize-apps.js";
+import { fetchDesktopDay } from "./desktop-client.js";
 import { DailySummary } from "./components/DailySummary.jsx";
 import { CategoryChart } from "./components/CategoryChart.jsx";
 import { ThemeList } from "./components/ThemeList.jsx";
 import { Timeline } from "./components/Timeline.jsx";
 import { SessionsList } from "./components/SessionsList.jsx";
 import { LiveStatus } from "./components/LiveStatus.jsx";
+import { DesktopApps } from "./components/DesktopApps.jsx";
+import { DesktopCategories } from "./components/DesktopCategories.jsx";
 import { Settings } from "./components/Settings.jsx";
 
 const todayStr = () => toDateStr(Date.now());
@@ -32,7 +37,6 @@ function useCategoryCache() {
     if (!hasChrome || !chrome.storage) return;
     const load = () => chrome.storage.local.get("domainCategories", (d) => setCache(d.domainCategories || {}));
     load();
-    // refresh when a summary run updates the map
     chrome.storage.onChanged.addListener(load);
     return () => chrome.storage.onChanged.removeListener(load);
   }, []);
@@ -45,7 +49,7 @@ function useDayData(date, cache) {
 
   const load = useCallback(async () => {
     const now = Date.now();
-    const [metrics, analysis, history] = await Promise.all([
+    const [metrics, analysis, history, desktopRaw] = await Promise.all([
       getDayMetrics(date, now),
       getAnalysis(date),
       getHistoryForDay(date, now).catch(() => ({
@@ -54,11 +58,19 @@ function useDayData(date, cache) {
         historyDomainCount: 0,
         available: false,
       })),
+      fetchDesktopDay(date),
     ]);
+    const desktop = mergeDesktopWithChrome(metrics, desktopRaw);
     const { sessions, topDomains, timeline, domainHints, activeSeconds, openSeconds } = metrics;
     const historyAlignment = compareDayToHistory(metrics, history);
-    const categories =
+    const chromeCategories =
       analysis && analysis.categories?.length ? analysis.categories : categorizeSessions(sessions, cache);
+    const categories = desktop.available
+      ? mergeCategories(chromeCategories, desktop.categories)
+      : chromeCategories;
+    const displayTimeline =
+      desktop.available && desktop.mergedTimeline?.length ? desktop.mergedTimeline : timeline;
+
     setData({
       sessions,
       analysis,
@@ -66,9 +78,11 @@ function useDayData(date, cache) {
       activeSeconds,
       openSeconds,
       categories,
-      timeline,
+      timeline: displayTimeline,
+      timelineMerged: desktop.available,
       domainHints,
       historyAlignment,
+      desktop,
     });
     setLoading(false);
   }, [date, cache]);
@@ -78,7 +92,6 @@ function useDayData(date, cache) {
     load();
   }, [load]);
 
-  // Live refresh while viewing today.
   useEffect(() => {
     if (date !== todayStr()) return;
     const id = setInterval(load, 3000);
@@ -125,6 +138,11 @@ export default function App() {
   };
 
   const analysis = data?.analysis;
+  const hasActivity =
+    data &&
+    (data.sessions.length > 0 ||
+      data.openSeconds > 0 ||
+      data.desktop?.available);
 
   return (
     <div className="min-h-screen max-w-5xl mx-auto px-6 py-10">
@@ -176,7 +194,7 @@ export default function App() {
         </div>
       )}
 
-      {!loading && data && (data.sessions.length > 0 || data.openSeconds > 0) && (
+      {!loading && hasActivity && (
         <nav className="flex gap-1 mb-6 border-b border-slate-700/60">
           {TABS.map(({ id, label }) => (
             <button
@@ -200,7 +218,7 @@ export default function App() {
 
       {loading ? (
         <div className="text-slate-500 py-20 text-center">Loading…</div>
-      ) : !data || (data.sessions.length === 0 && data.openSeconds === 0) ? (
+      ) : !hasActivity ? (
         <div className="text-slate-500 py-20 text-center">
           No activity tracked for {date}. Browse a little, then come back.
         </div>
@@ -209,8 +227,17 @@ export default function App() {
           {tab === "overview" && (
             <div className="space-y-6">
               {isToday && (
-                <LiveStatus openSeconds={data.openSeconds} activeSeconds={data.activeSeconds} />
+                <LiveStatus
+                  openSeconds={data.openSeconds}
+                  activeSeconds={data.activeSeconds}
+                  desktop={data.desktop}
+                />
               )}
+              <DesktopApps
+                desktop={data.desktop}
+                chromeOpenSeconds={data.openSeconds}
+                chromeActiveSeconds={data.activeSeconds}
+              />
               {analysis ? (
                 <DailySummary
                   summary={analysis.summary}
@@ -220,6 +247,7 @@ export default function App() {
                   activeSeconds={data.activeSeconds}
                   analyzedAt={analysis.analyzedAt}
                   showClocks={!isToday}
+                  desktop={data.desktop}
                 />
               ) : (
                 <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
@@ -244,9 +272,18 @@ export default function App() {
             </div>
           )}
 
-          {tab === "categories" && <CategoryChart categories={data.categories} />}
+          {tab === "categories" && (
+            <div className="space-y-6">
+              <CategoryChart categories={data.categories} />
+              {data.desktop?.categories?.length > 0 && (
+                <DesktopCategories categories={data.desktop.categories} />
+              )}
+            </div>
+          )}
 
-          {tab === "timeline" && <Timeline timeline={data.timeline} />}
+          {tab === "timeline" && (
+            <Timeline timeline={data.timeline} merged={data.timelineMerged} />
+          )}
         </div>
       )}
 

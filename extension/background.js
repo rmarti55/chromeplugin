@@ -17,6 +17,7 @@ import {
 import { analyzeDay } from "./ai.js";
 import { refreshHistoryCacheForDate } from "./history.js";
 import { IDLE_SECONDS } from "./constants.js";
+import { getDesktopDayMetrics } from "./desktop-bridge.js";
 
 const MIN_ACTIVITY_SECONDS = 120; // 2 min before auto-summary runs
 const RETENTION_DAYS = 120;
@@ -209,6 +210,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     chrome.action.setBadgeText({ text: "" });
     sendResponse({ ok: true });
     return false;
+  }
+  if (message.type === "GET_DESKTOP_DAY") {
+    getDesktopDayMetrics(message.date)
+      .then((data) => sendResponse({ ok: true, data }))
+      .catch((err) => sendResponse({ ok: false, error: err.message }));
+    return true;
   }
   return false;
 });

@@ -1,0 +1,75 @@
+// Chrome ↔ macOS companion bridge via native messaging.
+// Requires install: macos/Scripts/install-native-host.sh
+
+const NATIVE_HOST = "com.dailymirror.companion";
+
+export const CHROME_BUNDLE_IDS = new Set([
+  "com.google.Chrome",
+  "com.google.Chrome.canary",
+  "com.google.Chrome.beta",
+  "com.brave.Browser",
+  "company.thebrowser.Browser",
+  "org.mozilla.firefox",
+  "com.microsoft.edgemac",
+  "com.apple.Safari",
+]);
+
+function connectNative() {
+  if (typeof chrome === "undefined" || !chrome.runtime?.connectNative) {
+    throw new Error("Native messaging unavailable");
+  }
+  return chrome.runtime.connectNative(NATIVE_HOST);
+}
+
+export function nativeRequest(message) {
+  return new Promise((resolve, reject) => {
+    let port;
+    try {
+      port = connectNative();
+    } catch (err) {
+      reject(err);
+      return;
+    }
+
+    let settled = false;
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      try {
+        port.disconnect();
+      } catch {
+        /* ignore */
+      }
+      fn(value);
+    };
+
+    port.onMessage.addListener((msg) => {
+      if (msg?.error) finish(reject, new Error(msg.error));
+      else finish(resolve, msg);
+    });
+
+    port.onDisconnect.addListener(() => {
+      if (settled) return;
+      const err = chrome.runtime.lastError?.message || "Native host disconnected";
+      finish(reject, new Error(err));
+    });
+
+    port.postMessage(message);
+  });
+}
+
+export async function getDesktopDayMetrics(dateStr) {
+  return nativeRequest({ type: "GET_DAY", date: dateStr });
+}
+
+export async function getSyncedDesktopDay(dateStr) {
+  return nativeRequest({ type: "GET_SYNCED_DAY", date: dateStr });
+}
+
+export async function pingDesktopCompanion() {
+  return nativeRequest({ type: "PING" });
+}
+
+export function isChromeApp(bundleId) {
+  return bundleId && CHROME_BUNDLE_IDS.has(bundleId);
+}

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { formatDuration } from "../../../db.js";
 import { getLiveStatus } from "../../../live.js";
 
-export function LiveStatus({ openSeconds, activeSeconds }) {
+export function LiveStatus({ openSeconds, activeSeconds, desktop }) {
   const [act, setAct] = useState({ status: "capturing" });
 
   useEffect(() => {
@@ -49,16 +49,36 @@ export function LiveStatus({ openSeconds, activeSeconds }) {
         </span>
       </div>
       <div className="text-sm text-slate-400 shrink-0 text-right">
-        <div>
-          <span className="tabular-nums text-indigo-400 font-semibold">
-            {formatDuration(openSeconds || 0)}
-          </span>{" "}
-          Chrome open
-        </div>
-        <div className="text-xs text-slate-500">
-          Active use:{" "}
-          <span className="tabular-nums text-slate-400">{formatDuration(activeSeconds || 0)}</span>
-        </div>
+        {desktop?.available ? (
+          <>
+            <div>
+              <span className="tabular-nums text-indigo-400 font-semibold">
+                {formatDuration(desktop.devicePresenceSeconds || 0)}
+              </span>{" "}
+              device presence
+            </div>
+            <div className="text-xs text-slate-500">
+              Chrome open:{" "}
+              <span className="tabular-nums text-slate-400">{formatDuration(openSeconds || 0)}</span>
+              {" · "}
+              active:{" "}
+              <span className="tabular-nums text-slate-400">{formatDuration(activeSeconds || 0)}</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <span className="tabular-nums text-indigo-400 font-semibold">
+                {formatDuration(openSeconds || 0)}
+              </span>{" "}
+              Chrome open
+            </div>
+            <div className="text-xs text-slate-500">
+              Active use:{" "}
+              <span className="tabular-nums text-slate-400">{formatDuration(activeSeconds || 0)}</span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

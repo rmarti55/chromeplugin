@@ -13,6 +13,8 @@ import {
 } from "./db.js";
 import { getHistoryForDay, compareDayToHistory, getTopMisalignedDomains } from "./history.js";
 import { DEFAULT_MODEL, estimateCostUsd } from "./models.js";
+import { getDesktopDayMetrics } from "./desktop-bridge.js";
+import { mergeDesktopWithChrome, buildDesktopSummaryForAI } from "./desktop-merge.js";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -71,7 +73,7 @@ function buildHistoryContext(metrics, history) {
   return `\n${aggregate}\nTop History/Mirror gaps (use for narrative breadth and blind spots — never as minute totals):\n${lines.join("\n")}`;
 }
 
-function buildPrompt(date, domainSummary, openMinutes, activeMinutes, goalText, historyContext = "") {
+function buildPrompt(date, domainSummary, openMinutes, activeMinutes, goalText, historyContext = "", desktopContext = "") {
   const goalBlock = goalText
     ? `\nThe person wrote down what they were trying to do:\n"${goalText}"\n`
     : "";
@@ -91,7 +93,7 @@ ${domainSummary}
 
 Chrome open: ${openMinutes} minutes (Chrome was the focused app)
 Active use: ${activeMinutes} minutes (Chrome focused + recent mouse/keyboard input)
-${gapNote}${historyContext}
+${gapNote}${historyContext}${desktopContext}
 ${goalBlock}
 Respond with ONLY valid JSON in this exact format:
 {
@@ -171,12 +173,15 @@ export async function analyzeDay(dateStr) {
   }
 
   const now = Date.now();
-  const [metrics, history] = await Promise.all([
+  const [metrics, history, desktopRaw] = await Promise.all([
     getDayMetrics(dateStr, now),
     getHistoryForDay(dateStr, now).catch(() => ({ available: false })),
+    getDesktopDayMetrics(dateStr).catch(() => null),
   ]);
+  const desktopMerge = mergeDesktopWithChrome(metrics, desktopRaw);
   const { sessions, domainHints, activeSeconds, openSeconds } = metrics;
-  if (!sessions.length && openSeconds === 0) {
+  const hasDesktop = desktopMerge?.available && desktopMerge.otherApps?.length > 0;
+  if (!sessions.length && openSeconds === 0 && !hasDesktop) {
     throw new Error("No tracked activity for this day yet.");
   }
 
@@ -186,13 +191,15 @@ export async function analyzeDay(dateStr) {
   const lastEventTs = await getLastEventTsInDay(dateStr, now);
   const goalText = (goals || "").trim();
   const historyContext = buildHistoryContext(metrics, history);
+  const desktopContext = buildDesktopSummaryForAI(desktopMerge);
   const prompt = buildPrompt(
     dateStr,
     buildDomainSummary(entries, domainHints),
     openMinutes,
     activeMinutes,
     goalText,
-    historyContext
+    historyContext,
+    desktopContext
   );
 
   const response = await fetch(OPENROUTER_API_URL, {

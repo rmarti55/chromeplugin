@@ -18,6 +18,7 @@ web/out/
 # misc
 .DS_Store
 *.pem
+macos/.build/
 
 # vercel
 .vercel

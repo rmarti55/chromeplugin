@@ -1,45 +1,94 @@
 # Time model
 
-Daily Mirror tracks two clocks from the same Chrome event log.
+Daily Mirror tracks two clocks from durable event logs. The Chrome extension and macOS companion use the same vocabulary.
 
 | Term | Meaning | Stops when |
 |---|---|---|
-| **Chrome open** | Chrome is the app in front | You switch to another app, or the screen locks |
-| **Active use** | Chrome in front + you recently used mouse/keyboard | Same as above, **or** ~5 min with no input (idle) |
+| **Presence** (Chrome: *Chrome open*) | The app is in front | You switch to another app, or the screen locks |
+| **Active use** | App in front + you recently used mouse/keyboard | Same as above, **or** ~5 min with no input (idle) |
 
-## How we use them (Chrome extension)
+## Chrome extension
 
-- **Header / today total** leads with **Chrome open** — “how long was the browser my foreground app?”
+- **Header / today total** leads with **Chrome open** (Presence for Chrome only).
 - **Site list, categories, timeline, AI narrative** use **Active use** — “where was my attention?”
 - **Site list** also shows **Chrome open** per page when it exceeds active use (passive reading on that page).
 - When the gap is large, call it out: “Chrome was open 3h; ~45m was active use.”
 
-## What we do not measure
+## macOS companion
 
-- Time in other apps
-- Background Chrome tabs while another app is in front
+The menu bar app (`macos/`) records desktop app focus with the same two clocks:
+
+| Event type | Source | Active use | Presence |
+|---|---|---|---|
+| `app_activate` | foreground app change | start for app | start for app |
+| `app_blur` | app loses focus | stop | stop |
+| `idle` | no input for 5 min | **stop** | continues |
+| `active` | input resumes | start | continues |
+| `locked` | screen lock / sleep | stop | stop |
+
+Storage: append-only JSONL at `~/Library/Application Support/DailyMirror/events.jsonl`.
+
+## Unified day overview (Chrome + Mac)
+
+When the native messaging bridge is installed:
+
+1. **Device presence / active** — sum of all foreground apps (one app at a time; no overlap).
+2. **Chrome sites** — still from the extension event log only.
+3. **Other apps** — from the macOS companion, excluding browser bundle IDs.
+
+### Dedup rules (important)
+
+- Do **not** add Chrome site minutes on top of “Chrome as an app” in the same total.
+- Overview header: **device presence** (or Chrome open + other-app presence as separate lines).
+- Site breakdown, Chrome categories, and Chrome timeline minutes stay **extension-owned**.
+- When Chrome is frontmost, macOS records `com.google.Chrome` (or your browser bundle ID); site detail still comes only from Chrome tab events.
 
 ## Chrome History (reference)
 
 | **Chrome History** | Every page load Chrome recorded | Reference only — visits, not focus time |
 
-Daily Mirror reads `chrome.history.getVisits` for a **side-by-side alignment** table:
-
-- **History visits** — every load Chrome logged (including background tabs).
-- **History est. dwell** — gap until the next page load, capped at 30 minutes per segment. This is a **proxy**, not stored by Chrome.
-- Compared against Mirror **active use**, **Chrome open** (per domain), and **navigations**.
-
-Time clocks still come from the event log only. History visit counts are usually higher than Mirror navigations because History includes background loads.
+Daily Mirror reads `chrome.history.getVisits` for a **side-by-side alignment** table. Time clocks still come from event logs only.
 
 ## Likely-automated activity
 
-We flag rapid reloads, query churn, and burst navigation from event shape. These are **heuristics**, not proof that an AI agent drove the tab. We never label Claude, Codex, or Cursor as the initiator.
+We flag rapid reloads, query churn, and burst navigation from event shape. These are **heuristics**, not proof that an AI agent drove the tab.
 
-## Later: multi-device
+## Cross-device (CloudKit)
 
-This doc applies to the **Chrome extension** only. A future macOS + iOS platform can unify one day story across devices using the same two ideas:
+Optional sync uploads **day aggregates** (not raw events) to your private iCloud container for multi-Mac / iPhone **viewer**. iOS Screen Time APIs do **not** export per-app minutes into Daily Mirror — phone is a viewer/nudge surface, not a usage peer.
 
-- **Active use** — you were interacting
-- **Presence** — the app/device was in front (or primary)
+## Shared event schema (conceptual)
 
-Revisit this file when adding those form factors.
+### Chrome (`extension/db.js`)
+
+```js
+{ ts, type, tabId?, url?, title?, domain? }
+// types: activate | urlchange | focus | blur | idle | active | locked
+```
+
+### macOS (`macos/Sources/DailyMirrorCompanion/`)
+
+```js
+{ ts, type, bundleId?, appName? }
+// types: app_activate | app_blur | idle | active | locked
+```
+
+### Derived session (both platforms)
+
+```js
+{ target, presenceSeconds, activeSeconds }
+// Chrome target = url/domain; macOS target = bundleId + display name
+```
+
+Bridge payload (`GET_DAY` native message):
+
+```js
+{
+  date: "YYYY-MM-DD",
+  presenceSeconds, activeSeconds,
+  apps: [{ bundleId, name, presenceSeconds, activeSeconds }],
+  timeline: [{ hour, hourStartTs, activity, total, apps }],
+  categories: [{ name, seconds, minutes }],
+  deviceId, syncedDevices
+}
+```
