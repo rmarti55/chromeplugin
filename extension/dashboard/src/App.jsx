@@ -19,6 +19,13 @@ import { Settings } from "./components/Settings.jsx";
 const todayStr = () => toDateStr(Date.now());
 const hasChrome = typeof chrome !== "undefined" && chrome.runtime;
 
+const TABS = [
+  { id: "overview", label: "Overview" },
+  { id: "sites", label: "Sites" },
+  { id: "categories", label: "Categories" },
+  { id: "timeline", label: "Timeline" },
+];
+
 function useCategoryCache() {
   const [cache, setCache] = useState(undefined);
   useEffect(() => {
@@ -84,6 +91,7 @@ function useDayData(date, cache) {
 export default function App() {
   const params = new URLSearchParams(window.location.search);
   const [date, setDate] = useState(params.get("date") || todayStr());
+  const [tab, setTab] = useState("overview");
   const [days, setDays] = useState([]);
   const [summarizing, setSummarizing] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -92,6 +100,10 @@ export default function App() {
   const { data, loading, reload } = useDayData(date, cache);
 
   const isToday = date === todayStr();
+
+  useEffect(() => {
+    setTab("overview");
+  }, [date]);
 
   useEffect(() => {
     Promise.all([listActivityDays(), listAnalysisDays()]).then(([a, b]) => {
@@ -146,12 +158,8 @@ export default function App() {
         </div>
       </header>
 
-      {isToday && (
-        <LiveStatus openSeconds={data?.openSeconds} activeSeconds={data?.activeSeconds} />
-      )}
-
       {days.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-8">
+        <div className="flex flex-wrap gap-2 mb-6">
           {days.map((d) => (
             <button
               key={d}
@@ -168,6 +176,24 @@ export default function App() {
         </div>
       )}
 
+      {!loading && data && (data.sessions.length > 0 || data.openSeconds > 0) && (
+        <nav className="flex gap-1 mb-6 border-b border-slate-700/60">
+          {TABS.map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                tab === id
+                  ? "text-indigo-300 border-indigo-500"
+                  : "text-slate-500 border-transparent hover:text-slate-300 hover:border-slate-600"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      )}
+
       {msg && (
         <div className="mb-6 p-3 rounded-lg bg-red-950/60 border border-red-900/60 text-red-300 text-sm">{msg}</div>
       )}
@@ -179,49 +205,48 @@ export default function App() {
           No activity tracked for {date}. Browse a little, then come back.
         </div>
       ) : (
-        <div className="space-y-6">
-          {analysis ? (
-            <DailySummary
-              summary={analysis.summary}
-              observation={analysis.observation}
-              goalAssessment={analysis.goalAssessment}
-              openSeconds={data.openSeconds}
-              activeSeconds={data.activeSeconds}
-              topDomains={data.topDomains}
-              analyzedAt={analysis.analyzedAt}
-              estimatedCostUsd={analysis.estimatedCostUsd}
-              historyAlignment={data.historyAlignment}
-            />
-          ) : (
-            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
-              <p className="text-slate-300">
-                Tracked and categorized locally. Click{" "}
-                <span className="text-indigo-400 font-medium">Summarize</span> for your AI narrative.
-              </p>
-              {data.historyAlignment?.available && data.historyAlignment.summary && (
-                <p className="text-sm text-slate-500 mt-3 p-3 rounded-lg bg-slate-900/50 border border-slate-700/50">
-                  {data.historyAlignment.summary}
-                  {data.historyAlignment.trend && (
-                    <span className="block text-xs mt-1">{data.historyAlignment.trend}</span>
-                  )}
-                </p>
+        <div>
+          {tab === "overview" && (
+            <div className="space-y-6">
+              {isToday && (
+                <LiveStatus openSeconds={data.openSeconds} activeSeconds={data.activeSeconds} />
+              )}
+              {analysis ? (
+                <DailySummary
+                  summary={analysis.summary}
+                  observation={analysis.observation}
+                  goalAssessment={analysis.goalAssessment}
+                  openSeconds={data.openSeconds}
+                  activeSeconds={data.activeSeconds}
+                  analyzedAt={analysis.analyzedAt}
+                  showClocks={!isToday}
+                />
+              ) : (
+                <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
+                  <p className="text-slate-300">
+                    Tracked and categorized locally. Click{" "}
+                    <span className="text-indigo-400 font-medium">Summarize</span> for your AI narrative.
+                  </p>
+                </div>
               )}
             </div>
           )}
 
-          <CategoryChart categories={data.categories} />
+          {tab === "sites" && (
+            <div className="space-y-6">
+              <SessionsList
+                sessions={data.sessions}
+                categoryCache={cache}
+                domainHints={data.domainHints}
+                historyAlignment={data.historyAlignment}
+              />
+              {analysis ? <ThemeList themes={analysis.themes} /> : null}
+            </div>
+          )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <SessionsList
-              sessions={data.sessions}
-              categoryCache={cache}
-              domainHints={data.domainHints}
-              historyAlignment={data.historyAlignment}
-            />
-            {analysis ? <ThemeList themes={analysis.themes} /> : null}
-          </div>
+          {tab === "categories" && <CategoryChart categories={data.categories} />}
 
-          <Timeline timeline={data.timeline} />
+          {tab === "timeline" && <Timeline timeline={data.timeline} />}
         </div>
       )}
 
