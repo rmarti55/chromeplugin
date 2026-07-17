@@ -2,14 +2,14 @@ import SwiftUI
 
 struct DailyMirrorApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @StateObject private var tracker = AppTracker.shared
+    @ObservedObject private var tracker = AppTracker.shared
 
     var body: some Scene {
         MenuBarExtra("Daily Mirror", systemImage: "clock.arrow.circlepath") {
             MenuBarView()
                 .environmentObject(tracker)
         }
-        .menuBarExtraStyle(.window)
+        .menuBarExtraStyle(.menu)
     }
 }
 

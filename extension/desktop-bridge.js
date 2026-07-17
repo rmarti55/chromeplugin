@@ -21,7 +21,9 @@ function connectNative() {
   return chrome.runtime.connectNative(NATIVE_HOST);
 }
 
-export function nativeRequest(message) {
+const NATIVE_TIMEOUT_MS = 2000;
+
+export function nativeRequest(message, timeoutMs = NATIVE_TIMEOUT_MS) {
   return new Promise((resolve, reject) => {
     let port;
     try {
@@ -32,9 +34,14 @@ export function nativeRequest(message) {
     }
 
     let settled = false;
+    const timer = setTimeout(() => {
+      finish(reject, new Error("Native host timed out"));
+    }, timeoutMs);
+
     const finish = (fn, value) => {
       if (settled) return;
       settled = true;
+      clearTimeout(timer);
       try {
         port.disconnect();
       } catch {

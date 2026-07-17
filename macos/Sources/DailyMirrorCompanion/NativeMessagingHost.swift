@@ -47,16 +47,9 @@ enum NativeMessagingHost {
 
     private static func dayResponse(for date: String) -> [String: Any] {
         let deviceId = DeviceIdentity.id
-        guard var metrics = SessionDeriver.computeDayMetrics(dateStr: date, deviceId: deviceId) else {
+        guard let metrics = SessionDeriver.computeDayMetrics(dateStr: date, deviceId: deviceId, syncedDevices: []) else {
             return ["error": "Invalid date"]
         }
-        let sem = DispatchSemaphore(value: 0)
-        Task {
-            let synced = await CloudKitSync.shared.syncedDeviceIds(for: date)
-            metrics.syncedDevices = synced.filter { $0 != deviceId }
-            sem.signal()
-        }
-        _ = sem.wait(timeout: .now() + 2)
         guard let data = try? JSONEncoder().encode(metrics),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return ["error": "Encode failed"]
