@@ -11,18 +11,29 @@
       background: #0f172a;
       color: #e2e8f0;
     }
-    h1 { font-size: 15px; font-weight: 600; color: #f8fafc; }
-    .sub { font-size: 11px; color: #64748b; margin-bottom: 14px; }
+    h1 { font-size: 16px; font-weight: 700; color: #f8fafc; }
+    .sub { font-size: 11px; color: #64748b; margin-bottom: 16px; }
 
-    .live {
-      padding: 10px 12px; background: #1e293b; border-radius: 8px; margin-bottom: 10px;
-      font-size: 12px; color: #cbd5e1;
+    .today-card {
+      padding: 12px; background: #1e293b; border-radius: 8px; margin-bottom: 12px;
     }
+    .section-label {
+      font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+      text-transform: uppercase; color: #64748b; margin-bottom: 8px;
+    }
+    .today-divider {
+      height: 1px; background: #334155; margin: 10px 0;
+    }
+
     .live-row {
       display: flex; align-items: center; gap: 8px; min-width: 0;
+      font-size: 12px; color: #cbd5e1;
     }
     .live-row + .live-row { margin-top: 6px; }
     .live-row.offline { color: #fca5a5; }
+    .live-prefix { color: #94a3b8; }
+    .live-focus { color: #f8fafc; font-weight: 500; font-variant-numeric: tabular-nums; }
+
     .dot { width: 9px; height: 9px; border-radius: 50%; background: #64748b; flex-shrink: 0; }
     .dot.capturing { background: #22c55e; box-shadow: 0 0 0 0 rgba(34,197,94,0.7); animation: pulse 1.6s infinite; }
     .dot.idle { background: #0ea5e9; box-shadow: 0 0 0 0 rgba(14,165,233,0.7); animation: pulseIdle 1.6s infinite; }
@@ -38,14 +49,19 @@
       70% { box-shadow: 0 0 0 7px rgba(14,165,233,0); }
       100% { box-shadow: 0 0 0 0 rgba(14,165,233,0); }
     }
-    .live .mono { color: #f8fafc; font-variant-numeric: tabular-nums; }
 
-    #stats {
-      padding: 10px 12px; background: #1e293b; border-radius: 8px; margin-bottom: 12px;
-      font-size: 12px; color: #94a3b8; line-height: 1.5; white-space: nowrap;
+    #stats { font-size: 12px; color: #94a3b8; }
+    .stat-block + .stat-block { margin-top: 10px; padding-top: 10px; border-top: 1px solid #334155; }
+    .stat-row {
+      display: flex; align-items: baseline; gap: 6px;
+      font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap;
+      margin-bottom: 4px;
     }
-    #stats strong { color: #e2e8f0; }
-    #stats .browsing-line { color: #64748b; font-size: 11px; }
+    .stat-primary { color: #818cf8; font-weight: 600; }
+    .stat-secondary { color: #cbd5e1; }
+    .stat-sep { color: #475569; }
+    .stat-caption { font-size: 10px; color: #64748b; }
+    .stat-meta { font-size: 11px; color: #64748b; margin-top: 8px; }
 
     button {
       width: 100%; padding: 10px; border: none; border-radius: 6px; font-size: 13px;
@@ -70,12 +86,15 @@
   <h1>Daily Mirror</h1>
   <div class="sub">A private, on-device look at your day.</div>
 
-  <div class="live">
-    <div class="live-row"><span id="chromeDot" class="dot"></span><span id="chromeLiveText">Checking…</span></div>
-    <div class="live-row" id="macLiveRow" hidden><span id="macDot" class="dot"></span><span id="macLiveText"></span></div>
+  <div class="today-card">
+    <div class="today-section--now">
+      <div class="section-label">Now</div>
+      <div class="live-row"><span id="chromeDot" class="dot"></span><span id="chromeLiveText">Checking…</span></div>
+      <div class="live-row" id="macLiveRow" hidden><span id="macDot" class="dot"></span><span id="macLiveText"></span></div>
+    </div>
+    <div class="today-divider"></div>
+    <div id="stats">Loading today…</div>
   </div>
-
-  <div id="stats">Loading today…</div>
 
   <button id="summarizeBtn">✨ Summarize today</button>
   <button id="dashboardBtn">Open dashboard</button>

@@ -1,7 +1,7 @@
 // Calendar period helpers — window + grain for week/month breakdown charts.
 // Week = calendar Mon–Sun containing the anchor date; month = calendar month.
 
-import { getDayMetrics, toDateStr } from "./db.js";
+import { getDayMetrics, toDateStr, classifyDay } from "./db.js";
 import { mergeDesktopWithChrome } from "./desktop-merge.js";
 import { LABELS } from "./labels.js";
 
@@ -134,17 +134,23 @@ export function primarySecondsFromDay(chromeMetrics, desktopMerged) {
 }
 
 export async function loadDayRollup(dateStr, now, fetchDesktopDay) {
-  const [metrics, desktopRaw] = await Promise.all([
+  const emptyDesktop = { payload: null, fetchOk: false };
+  const [metrics, desktopResult] = await Promise.all([
     getDayMetrics(dateStr, now),
-    fetchDesktopDay ? fetchDesktopDay(dateStr) : Promise.resolve(null),
+    fetchDesktopDay ? fetchDesktopDay(dateStr) : Promise.resolve(emptyDesktop),
   ]);
+  const desktopRaw = desktopResult?.payload ?? null;
+  const desktopFetchOk = desktopResult?.fetchOk ?? false;
   const desktop = mergeDesktopWithChrome(metrics, desktopRaw);
   const { activeSeconds, openSeconds, source } = primarySecondsFromDay(metrics, desktop);
-  const hasActivity =
-    activeSeconds > 0 ||
-    openSeconds > 0 ||
-    metrics.sessions.length > 0 ||
-    desktop.available;
+  const status = classifyDay({
+    sessions: metrics.sessions,
+    openSeconds: metrics.openSeconds,
+    activeSeconds: metrics.activeSeconds,
+    desktopAvailable: desktop.available,
+    desktopFetchOk,
+  });
+  const hasActivity = status === "active";
 
   return {
     date: dateStr,
@@ -152,7 +158,9 @@ export async function loadDayRollup(dateStr, now, fetchDesktopDay) {
     openSeconds,
     source,
     hasActivity,
+    status,
     desktopAvailable: desktop.available,
+    desktopFetchOk,
   };
 }
 
@@ -171,12 +179,14 @@ export async function getWeekBreakdown(anchorDateStr, { now = Date.now(), fetchD
     seconds: r.activeSeconds,
     openSeconds: r.openSeconds,
     hasActivity: r.hasActivity,
+    status: r.status,
     source: r.source,
   }));
 
   const totalActive = bars.reduce((s, b) => s + b.seconds, 0);
+  const quietDayCount = rollups.filter((r) => !r.hasActivity).length;
   const anyMac = rollups.some((r) => r.desktopAvailable);
-  const metricLabel = anyMac ? LABELS.usingMac : LABELS.usingChrome;
+  const metricLabel = anyMac ? LABELS.activeMac : LABELS.activeChrome;
 
   return {
     kind: "week",
@@ -185,6 +195,7 @@ export async function getWeekBreakdown(anchorDateStr, { now = Date.now(), fetchD
     days,
     bars,
     totalActive,
+    quietDayCount,
     metricLabel,
     anyMac,
   };
@@ -204,6 +215,8 @@ export async function getMonthBreakdown(anchorDateStr, { now = Date.now(), fetch
     const activeSeconds = days.reduce((s, d) => s + d.activeSeconds, 0);
     const openSeconds = days.reduce((s, d) => s + d.openSeconds, 0);
     const hasActivity = days.some((d) => d.hasActivity);
+    const quietDayCount = days.filter((d) => !d.hasActivity).length;
+    const activeDayCount = days.filter((d) => d.hasActivity).length;
     const anyMac = days.some((d) => d.desktopAvailable);
 
     return {
@@ -215,13 +228,16 @@ export async function getMonthBreakdown(anchorDateStr, { now = Date.now(), fetch
       seconds: activeSeconds,
       openSeconds,
       hasActivity,
+      quietDayCount,
+      activeDayCount,
       source: anyMac ? "mac" : "chrome",
     };
   });
 
   const totalActive = bars.reduce((s, b) => s + b.seconds, 0);
+  const quietDayCount = rollups.filter((r) => !r.hasActivity).length;
   const anyMac = rollups.some((r) => r.desktopAvailable);
-  const metricLabel = anyMac ? LABELS.usingMac : LABELS.usingChrome;
+  const metricLabel = anyMac ? LABELS.activeMac : LABELS.activeChrome;
 
   return {
     kind: "month",
@@ -229,6 +245,7 @@ export async function getMonthBreakdown(anchorDateStr, { now = Date.now(), fetch
     subtitle: monthLabel,
     bars,
     totalActive,
+    quietDayCount,
     metricLabel,
     anyMac,
   };

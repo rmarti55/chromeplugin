@@ -5,12 +5,12 @@ import {
   livePingClass,
   chromeLiveStatusText,
   macLiveStatusText,
-  liveRowTextColor,
 } from "../../../live.js";
 import { LABELS } from "../../../labels.js";
 import { DayClocks } from "./DayClocks.jsx";
+import { Card } from "./ui/Card.jsx";
 
-function LiveRow({ status, children, textClassName = "text-slate-300" }) {
+function LiveRow({ status, children, textClassName = "text-stone-600" }) {
   const offline = status === "offline";
   const paused = status === "paused";
   const showPing = !offline && !paused;
@@ -39,7 +39,7 @@ function ChromeLiveContent({ chrome }) {
     return (
       <>
         {LABELS.usingChromeOn}{" "}
-        <span className="text-slate-100 font-medium">{chrome.domain}</span>
+        <span className="text-stone-900 font-medium">{chrome.domain}</span>
       </>
     );
   }
@@ -55,11 +55,16 @@ function MacLiveContent({ mac }) {
     return (
       <>
         {LABELS.usingMacOn}{" "}
-        <span className="text-slate-100 font-medium">{mac.appName}</span>
+        <span className="text-stone-900 font-medium">{mac.appName}</span>
       </>
     );
   }
   return macLiveStatusText(mac);
+}
+
+function macRowTextClass(status) {
+  if (status === "offline") return "text-red-700";
+  return "text-stone-600";
 }
 
 export function LiveStatus({ openSeconds, activeSeconds, desktop, onLiveChange }) {
@@ -86,18 +91,18 @@ export function LiveStatus({ openSeconds, activeSeconds, desktop, onLiveChange }
   const { chrome, mac } = live;
 
   return (
-    <div className="flex items-center justify-between gap-4 mb-8 px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700/50">
+    <Card className="flex items-center justify-between gap-4 py-4">
       <div className="flex flex-col gap-1.5 min-w-0">
         <LiveRow status={chrome?.status || "capturing"}>
           <ChromeLiveContent chrome={chrome} />
         </LiveRow>
         {mac && (
-          <LiveRow status={mac.status} textClassName={liveRowTextColor(mac.status)}>
+          <LiveRow status={mac.status} textClassName={macRowTextClass(mac.status)}>
             <MacLiveContent mac={mac} />
           </LiveRow>
         )}
       </div>
       <DayClocks openSeconds={openSeconds} activeSeconds={activeSeconds} desktop={desktop} />
-    </div>
+    </Card>
   );
 }

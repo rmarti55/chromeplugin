@@ -3,6 +3,7 @@
 
 import { dayBounds, toDateStr } from "./db.js";
 import { rollupNoiseRows } from "./noise.js";
+import { LABELS } from "./labels.js";
 
 const CACHE_KEY_PREFIX = "historySnapshot:";
 const CACHE_FRESH_MS = 55 * 60 * 1000;
@@ -208,10 +209,10 @@ function trendNote(history, metrics) {
     return "History gap-estimate is higher than Mirror — many short page loads.";
   }
   if (openMin > hDwell * 1.5 && openMin > activeMin) {
-    return "In Chrome exceeds History gap-estimate — reading without many navigations.";
+    return `${LABELS.passiveChrome} exceeds History gap-estimate — reading without many navigations.`;
   }
   if (activeMin > 0 && hDwell > 0 && Math.abs(hDwell - activeMin) / activeMin < 0.35) {
-    return "History gap-estimate and using Chrome are in the same ballpark.";
+    return "History gap-estimate and active time are in the same ballpark.";
   }
   return null;
 }
@@ -297,7 +298,7 @@ export function compareDayToHistory(metrics, history) {
   const openMin = Math.round((metrics.openSeconds || 0) / 60);
   const activeMin = Math.round((metrics.activeSeconds || 0) / 60);
   const hDwellMin = Math.round((history.estimatedDwellSeconds || 0) / 60);
-  const summary = `History est. dwell ≈ ${hDwellMin}m (${history.historyVisitCount} visits) | In Chrome ${openMin}m | Using Chrome ${activeMin}m | ${mirrorNavTotal} navigations.`;
+  const summary = `History est. dwell ≈ ${hDwellMin}m (${history.historyVisitCount} visits) | ${LABELS.passiveChrome} ${openMin}m | ${LABELS.activeChrome} ${activeMin}m | ${mirrorNavTotal} navigations.`;
   const trend = trendNote(history, metrics);
 
   return { summary, trend, rows: displayRows, available: true };

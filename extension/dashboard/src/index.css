@@ -4,6 +4,9 @@
 
 html,
 body {
-  background: #0f172a;
-  color: #e2e8f0;
+  background: #f8f6f3;
+  color: #1c1917;
+  font-family: "Source Sans 3", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

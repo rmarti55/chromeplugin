@@ -1,4 +1,4 @@
-import { getDayMetrics, aggregateByDomain, formatDuration, toDateStr } from "./db.js";
+import { getDayMetrics, aggregateByDomain, formatDuration, toDateStr, classifyDay } from "./db.js";
 import {
   getLiveStatus,
   chromeLiveStatusText,
@@ -6,7 +6,7 @@ import {
   popupDotClass,
 } from "./live.js";
 import { mergeDesktopWithChrome } from "./desktop-merge.js";
-import { LABELS } from "./labels.js";
+import { LABELS, clockPairCaption, quietDaySummary } from "./labels.js";
 
 const $ = (id) => document.getElementById(id);
 const todayStr = () => toDateStr(Date.now());
@@ -23,14 +23,14 @@ function openDashboard() {
 
 function fetchDesktopDay(dateStr) {
   return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(null), 2500);
+    const timer = setTimeout(() => resolve({ payload: null, fetchOk: false }), 2500);
     chrome.runtime.sendMessage({ type: "GET_DESKTOP_DAY", date: dateStr }, (res) => {
       clearTimeout(timer);
       if (chrome.runtime.lastError || !res?.ok) {
-        resolve(null);
+        resolve({ payload: null, fetchOk: false });
         return;
       }
-      resolve(res.data);
+      resolve({ payload: res.data ?? null, fetchOk: true });
     });
   });
 }
@@ -50,18 +50,24 @@ function renderLiveRow(dotEl, textEl, rowEl, row, isMac = false) {
   }
 
   if (!isMac && row.domain) {
-    textEl.appendChild(document.createTextNode(`${LABELS.usingChromeOn} `));
+    const prefix = document.createElement("span");
+    prefix.className = "live-prefix";
+    prefix.textContent = `${LABELS.liveActiveOn} `;
+    textEl.appendChild(prefix);
     const site = document.createElement("span");
-    site.className = "mono";
+    site.className = "live-focus";
     site.textContent = row.domain;
     textEl.appendChild(site);
     return;
   }
 
   if (isMac && row.appName) {
-    textEl.appendChild(document.createTextNode(`${LABELS.usingMacOn} `));
+    const prefix = document.createElement("span");
+    prefix.className = "live-prefix";
+    prefix.textContent = `${LABELS.liveActiveOn} `;
+    textEl.appendChild(prefix);
     const app = document.createElement("span");
-    app.className = "mono";
+    app.className = "live-focus";
     app.textContent = row.appName;
     textEl.appendChild(app);
     return;
@@ -91,29 +97,76 @@ async function renderLive(macDayAvailable = false) {
     }
   } catch {
     chromeDot.className = "dot capturing";
-    chromeText.textContent = LABELS.inChrome;
+    chromeText.textContent = LABELS.chromeOpen;
     macRow.hidden = true;
   }
 }
 
-function appendStrong(parent, text) {
-  const el = document.createElement("strong");
-  el.textContent = text;
-  parent.appendChild(el);
-  return el;
+function statRow(primary, secondary) {
+  const row = document.createElement("div");
+  row.className = "stat-row";
+
+  const primaryEl = document.createElement("span");
+  primaryEl.className = "stat-primary";
+  primaryEl.textContent = formatDuration(primary);
+  primaryEl.title = LABELS.tipPassive;
+  row.appendChild(primaryEl);
+
+  const sep = document.createElement("span");
+  sep.className = "stat-sep";
+  sep.textContent = "·";
+  row.appendChild(sep);
+
+  const secondaryEl = document.createElement("span");
+  secondaryEl.className = "stat-secondary";
+  secondaryEl.textContent = formatDuration(secondary);
+  secondaryEl.title = LABELS.tipActive;
+  row.appendChild(secondaryEl);
+
+  return row;
 }
 
-async function renderStats(desktopRaw) {
+function statBlock({ label, primary, secondary, caption, title, nested = false }) {
+  const block = document.createElement("div");
+  block.className = "stat-block";
+  if (title) block.title = title;
+
+  const labelEl = document.createElement("div");
+  labelEl.className = "section-label";
+  labelEl.textContent = label;
+  block.appendChild(labelEl);
+
+  block.appendChild(statRow(primary, secondary));
+
+  const captionEl = document.createElement("div");
+  captionEl.className = "stat-caption";
+  captionEl.textContent = caption;
+  block.appendChild(captionEl);
+
+  if (nested) block.classList.add("stat-block--nested");
+  return block;
+}
+
+async function renderStats(desktopResult) {
   const el = $("stats");
   try {
     const date = todayStr();
     const now = Date.now();
     const metrics = await getDayMetrics(date, now);
+    const desktopRaw = desktopResult?.payload ?? null;
+    const desktopFetchOk = desktopResult?.fetchOk ?? false;
     const desktop = mergeDesktopWithChrome(metrics, desktopRaw);
     const { openSeconds, activeSeconds, sessions } = metrics;
+    const dayStatus = classifyDay({
+      sessions,
+      openSeconds,
+      activeSeconds,
+      desktopAvailable: desktop.available,
+      desktopFetchOk,
+    });
 
-    if (!sessions.length && openSeconds === 0 && !desktop.available) {
-      el.textContent = "No activity tracked yet today.";
+    if (dayStatus !== "active") {
+      el.textContent = quietDaySummary(date, dayStatus, now);
       return;
     }
 
@@ -121,35 +174,48 @@ async function renderStats(desktopRaw) {
     el.textContent = "";
 
     if (desktop.available) {
-      el.appendChild(document.createTextNode(`${LABELS.onMac}: `));
-      appendStrong(el, formatDuration(desktop.devicePresenceSeconds || 0));
-      el.appendChild(document.createTextNode(` · ${LABELS.usingMac}: `));
-      appendStrong(el, formatDuration(desktop.deviceActiveSeconds || 0));
-      el.appendChild(document.createElement("br"));
-
-      const browsing = document.createElement("span");
-      browsing.className = "browsing-line";
-      browsing.appendChild(document.createTextNode(`${LABELS.browsingChapter} — ${LABELS.inChrome}: `));
-      appendStrong(browsing, formatDuration(openSeconds));
-      browsing.appendChild(document.createTextNode(` · ${LABELS.usingChrome}: `));
-      appendStrong(browsing, formatDuration(activeSeconds));
-      el.appendChild(browsing);
-
+      el.appendChild(
+        statBlock({
+          label: LABELS.todayOnMac,
+          primary: desktop.devicePresenceSeconds || 0,
+          secondary: desktop.deviceActiveSeconds || 0,
+          caption: clockPairCaption(),
+          title: `${LABELS.tipPassiveMac} ${LABELS.tipActiveMac}`,
+        })
+      );
+      el.appendChild(
+        statBlock({
+          label: LABELS.browsingChapter,
+          primary: openSeconds,
+          secondary: activeSeconds,
+          caption: clockPairCaption(),
+          title: LABELS.tipBrowsingChapter,
+          nested: true,
+        })
+      );
       if (domains > 0) {
-        el.appendChild(document.createElement("br"));
-        el.appendChild(document.createTextNode(`${domains} site${domains === 1 ? "" : "s"}.`));
+        const meta = document.createElement("div");
+        meta.className = "stat-meta";
+        meta.textContent = `${domains} site${domains === 1 ? "" : "s"}.`;
+        el.appendChild(meta);
       }
       return;
     }
 
-    el.appendChild(document.createTextNode(`${LABELS.inChrome}: `));
-    appendStrong(el, formatDuration(openSeconds));
-    el.appendChild(document.createTextNode(` · ${LABELS.usingChrome}: `));
-    appendStrong(el, formatDuration(activeSeconds));
+    el.appendChild(
+      statBlock({
+        label: LABELS.todayOnMac,
+        primary: openSeconds,
+        secondary: activeSeconds,
+        caption: clockPairCaption(),
+        title: `${LABELS.tipPassiveChrome} ${LABELS.tipActiveChrome}`,
+      })
+    );
     if (domains > 0) {
-      el.appendChild(document.createTextNode(` · ${domains} site${domains === 1 ? "" : "s"}.`));
-    } else {
-      el.appendChild(document.createTextNode("."));
+      const meta = document.createElement("div");
+      meta.className = "stat-meta";
+      meta.textContent = `${domains} site${domains === 1 ? "" : "s"}.`;
+      el.appendChild(meta);
     }
   } catch {
     el.textContent = "Could not read local activity.";
@@ -158,10 +224,10 @@ async function renderStats(desktopRaw) {
 
 async function tick() {
   const date = todayStr();
-  const desktopRaw = await fetchDesktopDay(date);
-  const macDayAvailable = !!(desktopRaw?.apps?.length);
+  const desktopResult = await fetchDesktopDay(date);
+  const macDayAvailable = !!(desktopResult?.payload?.apps?.length);
   await renderLive(macDayAvailable);
-  await renderStats(desktopRaw);
+  await renderStats(desktopResult);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -189,7 +255,8 @@ document.addEventListener("DOMContentLoaded", () => {
     showStatus("Writing your daily narrative… (10–30s)", "loading");
 
     const date = todayStr();
-    const desktopPayload = await fetchDesktopDay(date);
+    const desktopResult = await fetchDesktopDay(date);
+    const desktopPayload = desktopResult?.payload ?? null;
 
     chrome.runtime.sendMessage({ type: "ANALYZE_DAY", date, desktopPayload }, (res) => {
       $("summarizeBtn").disabled = false;

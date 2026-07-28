@@ -1,16 +1,18 @@
 import { formatDuration } from "../../../db.js";
 import { LABELS, appTimeLabel } from "../../../labels.js";
+import { Card } from "./ui/Card.jsx";
+import { SectionHeader } from "./ui/SectionHeader.jsx";
 
 export function DesktopApps({ desktop, chromeOpenSeconds, chromeActiveSeconds, live }) {
   if (!desktop?.available) {
     return (
-      <div className="bg-slate-800/40 rounded-xl p-5 border border-slate-700/40 border-dashed">
-        <h2 className="text-sm font-semibold text-slate-300 mb-1">Your Mac</h2>
-        <p className="text-xs text-slate-500">
+      <Card dashed className="p-5">
+        <SectionHeader title="Your Mac" />
+        <p className="text-xs text-stone-500 mt-2">
           Install the macOS companion and native messaging host to see your whole day — Cursor, Slack,
-          and other apps alongside Chrome. See <code className="text-slate-400">macos/README.md</code>.
+          and other apps alongside Chrome. See <code className="text-stone-600">macos/README.md</code>.
         </p>
-      </div>
+      </Card>
     );
   }
 
@@ -18,41 +20,37 @@ export function DesktopApps({ desktop, chromeOpenSeconds, chromeActiveSeconds, l
   const macOffline = live?.mac?.status === "offline";
 
   return (
-    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-5">
+    <Card className="space-y-5">
       {macOffline && (
-        <div className="rounded-lg border border-red-900/60 bg-red-950/40 px-4 py-3 text-sm text-red-200">
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           <p className="font-medium mb-1">{LABELS.macOfflineBanner}</p>
-          <code className="text-xs text-red-300/90 break-all">{LABELS.macOfflineLaunchCmd}</code>
+          <code className="text-xs text-red-700 break-all">{LABELS.macOfflineLaunchCmd}</code>
         </div>
       )}
 
-      <div>
-        <h2 className="text-lg font-semibold text-slate-100 mb-1" title={LABELS.tipOtherApps}>
-          {LABELS.otherAppsToday}
-        </h2>
-        <p className="text-xs text-slate-500">
-          Non-browser apps that were in front. Mac totals are in the header above.
-        </p>
-      </div>
+      <SectionHeader
+        title={LABELS.otherAppsToday}
+        subtitle="Non-browser apps that were in front. Mac totals are in the header above."
+      />
 
       {otherApps.length > 0 ? (
-        <ul className="divide-y divide-slate-700/50">
+        <ul className="divide-y divide-stone-100">
           {otherApps.slice(0, 12).map((app) => (
             <li key={app.bundleId} className="flex items-center justify-between py-2.5 text-sm">
-              <span className="text-slate-200">{app.name}</span>
-              <span className="text-slate-400 tabular-nums text-xs">
+              <span className="font-medium text-stone-800">{app.name}</span>
+              <span className="text-stone-500 tabular-nums text-xs">
                 {appTimeLabel(app.presenceSeconds, app.activeSeconds)}
               </span>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-slate-500">No non-browser app time recorded yet today.</p>
+        <p className="text-sm text-stone-500">No non-browser app time recorded yet today.</p>
       )}
 
-      <div className="pt-4 border-t border-slate-700/50" title={LABELS.tipBrowsingChapter}>
-        <h3 className="text-sm font-medium text-slate-300 mb-1">{LABELS.browsingChapter} in Chrome</h3>
-        <p className="text-xs text-slate-500">
+      <div className="pt-4 border-t border-stone-200" title={LABELS.tipBrowsingChapter}>
+        <h3 className="text-sm font-medium text-stone-700 mb-1">{LABELS.browsingChapter} in Chrome</h3>
+        <p className="text-xs text-stone-500">
           {LABELS.inChrome}: {formatDuration(chromeOpenSeconds)} · {LABELS.usingChrome}:{" "}
           {formatDuration(chromeActiveSeconds)}
           {chromeApp ? (
@@ -66,8 +64,8 @@ export function DesktopApps({ desktop, chromeOpenSeconds, chromeActiveSeconds, l
       </div>
 
       {syncedDevices?.length > 0 && (
-        <p className="text-xs text-slate-500">Also synced from {syncedDevices.length} other device(s) via iCloud.</p>
+        <p className="text-xs text-stone-400">Also synced from {syncedDevices.length} other device(s) via iCloud.</p>
       )}
-    </div>
+    </Card>
   );
 }

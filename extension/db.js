@@ -164,6 +164,32 @@ export function formatDisplayDate(dateStr, now = Date.now()) {
   return `${short}/${d.getFullYear()}`;
 }
 
+/** Last N local calendar days ending today (newest first). */
+export function listRecentCalendarDays(count, now = Date.now()) {
+  const days = [];
+  const start = new Date(toDateStr(now) + "T00:00:00");
+  for (let i = 0; i < count; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() - i);
+    days.push(toDateStr(d.getTime()));
+  }
+  return days;
+}
+
+/** "active" | "quiet" | "unconfirmed" — quiet = confirmed zero Chrome + reachable Mac with no apps. */
+export function classifyDay({
+  sessions = [],
+  openSeconds = 0,
+  activeSeconds = 0,
+  desktopAvailable = false,
+  desktopFetchOk = false,
+}) {
+  const chromeActive = sessions.length > 0 || openSeconds > 0 || activeSeconds > 0;
+  if (chromeActive || desktopAvailable) return "active";
+  if (desktopFetchOk) return "quiet";
+  return "unconfirmed";
+}
+
 // Human duration with second precision: "8s", "5m 12s", "1h 4m".
 export function formatDuration(seconds) {
   seconds = Math.max(0, Math.round(seconds));

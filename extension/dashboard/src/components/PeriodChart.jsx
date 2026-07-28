@@ -9,6 +9,7 @@ import {
   Cell,
 } from "recharts";
 import { formatDuration } from "../../../db.js";
+import { LABELS, quietDaysCountLabel, quietWeekBarDetail } from "../../../labels.js";
 
 const BAR_COLOR = "#6366f1";
 const BAR_COLOR_DIM = "#334155";
@@ -20,7 +21,7 @@ const tooltipStyle = {
   borderRadius: "8px",
 };
 
-function formatTooltipLabel(entry, metricLabel) {
+function formatTooltipLabel(entry) {
   if (entry.date) return entry.date;
   if (entry.startDate && entry.endDate) {
     return entry.startDate === entry.endDate
@@ -35,6 +36,8 @@ export function PeriodChart({
   subtitle,
   metricLabel,
   totalActive,
+  quietDayCount = 0,
+  periodKind,
   bars,
   selectedKey,
   onBarClick,
@@ -51,6 +54,8 @@ export function PeriodChart({
     onBarClick(data.payload);
   };
 
+  const quietLabel = quietDayCount > 0 ? quietDaysCountLabel(quietDayCount, periodKind) : null;
+
   return (
     <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
       <div className="flex flex-wrap items-start justify-between gap-3 mb-1">
@@ -58,12 +63,19 @@ export function PeriodChart({
           <h2 className="text-lg font-semibold text-slate-100">{title}</h2>
           {subtitle && <p className="text-sm text-slate-400 mt-0.5">{subtitle}</p>}
         </div>
-        {totalActive > 0 && (
-          <div className="text-right">
-            <div className="tabular-nums text-indigo-300 font-semibold">{formatDuration(totalActive)}</div>
-            <div className="text-[10px] uppercase tracking-wide text-slate-500">{metricLabel} total</div>
-          </div>
-        )}
+        <div className="text-right">
+          {totalActive > 0 ? (
+            <>
+              <div className="tabular-nums text-indigo-300 font-semibold">{formatDuration(totalActive)}</div>
+              <div className="text-[10px] uppercase tracking-wide text-slate-500">{metricLabel} total</div>
+            </>
+          ) : (
+            <div className="tabular-nums text-slate-400 font-semibold">{formatDuration(0)}</div>
+          )}
+          {quietLabel && (
+            <div className="text-[10px] text-slate-500 mt-1">{quietLabel}</div>
+          )}
+        </div>
       </div>
       <p className="text-xs text-slate-500 mb-4">
         Each bar is {metricLabel.toLowerCase()} — a within-period breakdown, not a week-vs-week comparison.
@@ -84,13 +96,20 @@ export function PeriodChart({
             <Tooltip
               contentStyle={tooltipStyle}
               cursor={{ fill: "rgba(99, 102, 241, 0.08)" }}
-              formatter={(value, _name, props) => [
-                formatDuration(value),
-                metricLabel,
-              ]}
+              formatter={(value, _name, props) => {
+                const entry = props?.payload;
+                if (entry && !entry.hasActivity) {
+                  if (entry.activeDayCount != null && entry.quietDayCount != null) {
+                    const detail = quietWeekBarDetail(entry.activeDayCount, entry.quietDayCount);
+                    return [detail ? `${LABELS.quietDayTooltip} (${detail})` : LABELS.quietDayTooltip, ""];
+                  }
+                  return [LABELS.quietDayTooltip, ""];
+                }
+                return [formatDuration(value), metricLabel];
+              }}
               labelFormatter={(_label, payload) => {
                 const entry = payload?.[0]?.payload;
-                return entry ? formatTooltipLabel(entry, metricLabel) : "";
+                return entry ? formatTooltipLabel(entry) : "";
               }}
             />
             <Bar

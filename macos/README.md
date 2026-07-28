@@ -1,6 +1,6 @@
 # Daily Mirror — macOS Companion
 
-Menu bar app that tracks **which desktop apps are in front** and for how long, using the same **Presence / Active use** clocks as the Chrome extension.
+Menu bar app that tracks **which desktop apps are on screen** and for how long, using the same **Passive / Active** clocks as the Chrome extension.
 
 ## Requirements
 
@@ -62,8 +62,8 @@ The build output in the repo is a dev artifact. Use `install-companion.sh` for t
 
 MVP uses **no** Accessibility, Screen Recording, or Input Monitoring prompts:
 
-- `NSWorkspace` app activation events → Presence
-- `CGEventSource` idle detection → Active use pauses after 5 min (matches extension)
+- `NSWorkspace` app activation events → Passive
+- `CGEventSource` idle detection → Active pauses after 5 min (matches extension)
 - Screen lock / sleep → pause both clocks
 
 ## Data storage

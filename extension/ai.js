@@ -112,7 +112,7 @@ Chrome browsing time for categories/themes: ${activeMinutes} min`;
     : "You are a calm, honest mirror for how someone spent their day online.";
 
   const macCriticalRule = hasDesktop
-    ? `- CRITICAL: Name what dominated the Mac day — specific apps and approximate minutes (e.g. "Mostly Slack (~35m) and Cursor (~20m)…"). If only Chrome appears above, say so explicitly. Do NOT use clock totals, dual-clock pairs, or phrases like "On your Mac", "in front", or "in use".`
+    ? `- CRITICAL: Name what dominated the Mac day — specific apps and approximate minutes (e.g. "Mostly Slack (~35m) and Cursor (~20m)…"). If only Chrome appears above, say so explicitly. Do NOT use clock totals, dual-clock pairs, or phrases like "passive", "active", "Passive on Mac", or "Active in Chrome".`
     : "";
 
   const strictBlock = strictMac
@@ -123,7 +123,7 @@ Chrome browsing time for categories/themes: ${activeMinutes} min`;
     ? `- The summary must cover Mac apps and Chrome browsing — named apps/sites with minutes. Never Chrome alone when Mac apps exist. Never lead with dual-clock totals.`
     : `- Name top sites and minutes — never navigation or visit counts from Mirror.`;
 
-  const clockBanRule = `- CRITICAL: In "summary", never use the phrases "in front", "in use", "On your Mac: … min", "Using your Mac", "left open without input", or compare two time clocks. Tell what they did, not how tracking works.`;
+  const clockBanRule = `- CRITICAL: In "summary", never use the phrases "passive", "active", "Passive on Mac", "Active in Chrome", "left open without input", or compare two time clocks. Tell what they did, not how tracking works.`;
 
   const historyRule = hasDesktop
     ? `- Chrome History is reference only for browsing blind spots — do not let History gaps dominate the summary when Mac app data is present.`

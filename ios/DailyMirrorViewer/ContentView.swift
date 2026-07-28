@@ -63,7 +63,7 @@ struct ContentView: View {
                 }
                 ForEach(store.payloads, id: \.deviceId) { day in
                     Section("Device \(day.deviceId.prefix(8))…") {
-                        LabeledContent("Presence", value: CloudKitDayStore.formatDuration(day.presenceSeconds))
+                        LabeledContent("Passive", value: CloudKitDayStore.formatDuration(day.presenceSeconds))
                         LabeledContent("Active", value: CloudKitDayStore.formatDuration(day.activeSeconds))
                         ForEach(day.apps.prefix(8)) { app in
                             LabeledContent(app.name, value: CloudKitDayStore.formatDuration(app.presenceSeconds))

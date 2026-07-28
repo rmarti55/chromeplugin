@@ -28,8 +28,20 @@ export function isDmVerbose() {
   return verbose;
 }
 
+function compactFields(fields) {
+  if (!fields || typeof fields !== "object") return "";
+  const keys = Object.keys(fields);
+  if (keys.length === 0) return "";
+  try {
+    return ` ${JSON.stringify(fields)}`;
+  } catch {
+    return " [unserializable]";
+  }
+}
+
 function emit(method, area, op, fields = {}) {
-  method(`${PREFIX} ${area}.${op}`, fields);
+  const msg = `${PREFIX} ${area}.${op}${compactFields(fields)}`;
+  method(msg, fields);
 }
 
 export function dmLog(area, op, fields) {

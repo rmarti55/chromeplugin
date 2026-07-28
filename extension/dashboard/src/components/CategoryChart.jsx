@@ -10,24 +10,24 @@ import {
 } from "recharts";
 import { formatDuration } from "../../../db.js";
 import { LABELS } from "../../../labels.js";
+import { Card } from "./ui/Card.jsx";
+import { SectionHeader } from "./ui/SectionHeader.jsx";
 
-const COLORS = [
-  "#6366f1",
-  "#8b5cf6",
-  "#ec4899",
-  "#f43f5e",
-  "#f97316",
-  "#eab308",
-  "#22c55e",
-  "#14b8a6",
-  "#06b6d4",
-  "#3b82f6",
-];
+const BAR_COLORS = ["#92400e", "#b45309", "#d97706", "#f59e0b", "#fbbf24", "#fde68a"];
+
+function barColor(seconds, maxSeconds) {
+  if (maxSeconds <= 0) return BAR_COLORS[BAR_COLORS.length - 1];
+  const ratio = seconds / maxSeconds;
+  const step = Math.min(BAR_COLORS.length - 1, Math.floor((1 - ratio) * BAR_COLORS.length));
+  return BAR_COLORS[step];
+}
 
 const tooltipStyle = {
-  background: "#1e293b",
-  border: "1px solid #334155",
+  background: "#ffffff",
+  border: "1px solid #e7e5e4",
   borderRadius: "8px",
+  color: "#1c1917",
+  fontSize: "13px",
 };
 
 export function CategoryChart({ categories, merged }) {
@@ -37,32 +37,33 @@ export function CategoryChart({ categories, merged }) {
     ...c,
     seconds: c.seconds ?? Math.round((c.minutes || 0) * 60),
   }));
+  const maxSeconds = Math.max(...chartData.map((c) => c.seconds));
 
   return (
-    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
-      <h2 className="text-lg font-semibold text-slate-100 mb-1">
-        {merged ? LABELS.dayByCategory : "Categories"}
-      </h2>
-      <p className="text-xs text-slate-500 mb-4">
-        {merged
-          ? "Chrome websites and other Mac apps — separate clocks, shared category view."
-          : "Using Chrome by category."}
-      </p>
-      <div className="h-72">
+    <Card>
+      <SectionHeader
+        title={merged ? LABELS.dayByCategory : "Categories"}
+        subtitle={
+          merged
+            ? "Chrome websites and other Mac apps — separate clocks, shared category view."
+            : "Using Chrome by category."
+        }
+      />
+      <div className="h-72 mt-4">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} layout="vertical">
-            <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-            <XAxis type="number" stroke="#94a3b8" fontSize={12} tickFormatter={(v) => formatDuration(v)} />
-            <YAxis type="category" dataKey="name" stroke="#94a3b8" fontSize={12} width={120} />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
+            <XAxis type="number" stroke="#a8a29e" fontSize={12} tickFormatter={(v) => formatDuration(v)} />
+            <YAxis type="category" dataKey="name" stroke="#a8a29e" fontSize={12} width={120} />
             <Tooltip contentStyle={tooltipStyle} formatter={(value) => [formatDuration(value), "Time"]} />
             <Bar dataKey="seconds" radius={[0, 4, 4, 0]}>
-              {chartData.map((_, index) => (
-                <Cell key={`bar-${index}`} fill={COLORS[index % COLORS.length]} />
+              {chartData.map((entry, index) => (
+                <Cell key={`bar-${index}`} fill={barColor(entry.seconds, maxSeconds)} />
               ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </Card>
   );
 }

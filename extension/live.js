@@ -77,9 +77,9 @@ async function getChromeLiveStatus(now = Date.now()) {
   }
 
   if (tab && isWeb(tab.url)) {
-    return { status: "capturing", domain: host(tab.url), message: LABELS.usingChrome };
+    return { status: "capturing", domain: host(tab.url), message: LABELS.activeChrome };
   }
-  return { status: "capturing", message: LABELS.inChrome };
+  return { status: "capturing", message: LABELS.chromeOpen };
 }
 
 function macOfflineStatus(message) {
@@ -115,7 +115,7 @@ function macFromPayload(macLive) {
     return {
       status: "capturing",
       appName: appName || "Chrome",
-      message: LABELS.inChrome,
+      message: LABELS.chromeOpen,
       macLiveFresh: true,
     };
   }
@@ -123,7 +123,7 @@ function macFromPayload(macLive) {
   return {
     status: "capturing",
     appName: appName || bundleId || "",
-    message: LABELS.usingMacOn,
+    message: LABELS.liveActiveOn,
     macLiveFresh: true,
   };
 }
@@ -223,8 +223,8 @@ export function chromeLiveStatusText(chrome) {
   if (chrome.status === "offline" || chrome.status === "paused" || chrome.status === "idle") {
     return chrome.message || LABELS.inBackground;
   }
-  if (chrome.domain) return `${LABELS.usingChromeOn} ${chrome.domain}`;
-  return chrome.message || LABELS.inChrome;
+  if (chrome.domain) return `${LABELS.liveActiveOn} ${chrome.domain}`;
+  return chrome.message || LABELS.chromeOpen;
 }
 
 export function macLiveStatusText(mac) {
@@ -232,8 +232,8 @@ export function macLiveStatusText(mac) {
   if (mac.status === "offline" || mac.status === "paused" || mac.status === "idle") {
     return mac.message || LABELS.macOffline;
   }
-  if (mac.appName) return `${LABELS.usingMacOn} ${mac.appName}`;
-  return mac.message || LABELS.inChrome;
+  if (mac.appName) return `${LABELS.liveActiveOn} ${mac.appName}`;
+  return mac.message || LABELS.chromeOpen;
 }
 
 /** @deprecated use chromeLiveStatusText / macLiveStatusText */

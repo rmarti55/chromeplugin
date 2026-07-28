@@ -40,7 +40,7 @@ struct MenuBarView: View {
                     Text(SessionDeriver.formatDuration(tracker.todayPresenceSeconds))
                         .foregroundStyle(.primary)
                 } icon: {
-                    Text("In front")
+                    Text("Passive")
                         .foregroundStyle(.secondary)
                         .frame(width: 64, alignment: .leading)
                 }
@@ -48,7 +48,7 @@ struct MenuBarView: View {
                     Text(SessionDeriver.formatDuration(tracker.todayActiveSeconds))
                         .foregroundStyle(.primary)
                 } icon: {
-                    Text("In use")
+                    Text("Active")
                         .foregroundStyle(.secondary)
                         .frame(width: 64, alignment: .leading)
                 }

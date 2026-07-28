@@ -1,10 +1,14 @@
+import { Card } from "./ui/Card.jsx";
+import { SectionHeader } from "./ui/SectionHeader.jsx";
+import { Metric } from "./ui/Metric.jsx";
+
 const THEME_INTENSITY = [
-  "bg-indigo-500/40 text-indigo-200 border-indigo-400/50",
-  "bg-indigo-500/30 text-indigo-200 border-indigo-400/40",
-  "bg-indigo-500/25 text-indigo-300 border-indigo-500/35",
-  "bg-indigo-500/20 text-indigo-300 border-indigo-500/30",
-  "bg-indigo-500/15 text-indigo-300/90 border-indigo-500/25",
-  "bg-indigo-500/10 text-indigo-400/80 border-indigo-500/20",
+  "bg-amber-100 text-amber-950 border-amber-300",
+  "bg-amber-50 text-amber-900 border-amber-200",
+  "bg-accent-softer text-amber-900 border-amber-100",
+  "bg-white text-stone-800 border-stone-200",
+  "bg-white text-stone-700 border-stone-200",
+  "bg-white text-stone-600 border-stone-100",
 ];
 
 function themeIntensityClass(minutes, maxMinutes) {
@@ -24,9 +28,9 @@ export function ThemeList({ themes }) {
   const maxMinutes = Math.max(...sortedThemes.map((t) => t.minutes || 0));
 
   return (
-    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
-      <h2 className="text-lg font-semibold text-slate-100 mb-4">Themes</h2>
-      <div className="space-y-3">
+    <Card>
+      <SectionHeader title="Themes" />
+      <div className="space-y-3 mt-4">
         {sortedThemes.map((theme, i) => (
           <div
             key={i}
@@ -34,11 +38,11 @@ export function ThemeList({ themes }) {
           >
             <div className="flex items-center justify-between mb-2">
               <span className="font-medium">{theme.name}</span>
-              <span className="text-sm opacity-75">{theme.minutes} min</span>
+              <Metric className="text-sm">{theme.minutes} min</Metric>
             </div>
             <div className="flex flex-wrap gap-1.5">
               {(theme.sites || []).map((site) => (
-                <span key={site} className="text-xs px-2 py-0.5 rounded-full bg-black/20">
+                <span key={site} className="text-xs px-2 py-0.5 rounded-full bg-stone-900/5 text-stone-600">
                   {site}
                 </span>
               ))}
@@ -46,6 +50,6 @@ export function ThemeList({ themes }) {
           </div>
         ))}
       </div>
-    </div>
+    </Card>
   );
 }
