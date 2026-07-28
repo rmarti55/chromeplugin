@@ -151,6 +151,19 @@ export function toDateStr(ts) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+// American calendar label for UI: "today 7/28", "yesterday 7/27", "the day before 7/26", or "7/25/2026".
+export function formatDisplayDate(dateStr, now = Date.now()) {
+  const dateMs = new Date(dateStr + "T00:00:00").getTime();
+  const todayMs = new Date(toDateStr(now) + "T00:00:00").getTime();
+  const offsetDays = Math.round((todayMs - dateMs) / 86400000);
+  const d = new Date(dateStr + "T00:00:00");
+  const short = `${d.getMonth() + 1}/${d.getDate()}`;
+  if (offsetDays === 0) return `today ${short}`;
+  if (offsetDays === 1) return `yesterday ${short}`;
+  if (offsetDays === 2) return `the day before ${short}`;
+  return `${short}/${d.getFullYear()}`;
+}
+
 // Human duration with second precision: "8s", "5m 12s", "1h 4m".
 export function formatDuration(seconds) {
   seconds = Math.max(0, Math.round(seconds));

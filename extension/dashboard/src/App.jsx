@@ -5,6 +5,7 @@ import {
   listActivityDays,
   listAnalysisDays,
   toDateStr,
+  formatDisplayDate,
 } from "../../db.js";
 import { getHistoryForDay, compareDayToHistory } from "../../history.js";
 import { categorizeSessions } from "../../categorize.js";
@@ -19,7 +20,10 @@ import { SessionsList } from "./components/SessionsList.jsx";
 import { LiveStatus } from "./components/LiveStatus.jsx";
 import { DesktopApps } from "./components/DesktopApps.jsx";
 import { Settings } from "./components/Settings.jsx";
+import { PeriodChart } from "./components/PeriodChart.jsx";
+import { usePeriodData } from "./hooks/usePeriodData.js";
 import { dmLog, dmWarn, dmError, dmOnChange } from "../../log.js";
+import { LABELS } from "../../labels.js";
 
 const todayStr = () => toDateStr(Date.now());
 const hasChrome = typeof chrome !== "undefined" && chrome.runtime;
@@ -29,6 +33,12 @@ const TABS = [
   { id: "sites", label: "Sites" },
   { id: "categories", label: "Categories" },
   { id: "timeline", label: "Timeline" },
+];
+
+const VIEW_MODES = [
+  { id: "day", label: LABELS.viewDay },
+  { id: "week", label: LABELS.viewWeek },
+  { id: "month", label: LABELS.viewMonth },
 ];
 
 function useCategoryCache() {
@@ -121,6 +131,7 @@ function useDayData(date, cache) {
 export default function App() {
   const params = new URLSearchParams(window.location.search);
   const [date, setDate] = useState(params.get("date") || todayStr());
+  const [viewMode, setViewMode] = useState("day");
   const [tab, setTab] = useState("overview");
   const [days, setDays] = useState([]);
   const [summarizing, setSummarizing] = useState(false);
@@ -129,8 +140,10 @@ export default function App() {
   const [macLive, setMacLive] = useState(null);
   const cache = useCategoryCache();
   const { data, loading, reload } = useDayData(date, cache);
+  const { data: periodData, loading: periodLoading } = usePeriodData(viewMode, date);
 
   const isToday = date === todayStr();
+  const isDayView = viewMode === "day";
 
   useEffect(() => {
     setTab("overview");
@@ -191,6 +204,20 @@ export default function App() {
       data.openSeconds > 0 ||
       data.desktop?.available);
 
+  const periodHasActivity = periodData?.bars?.some((b) => b.hasActivity);
+
+  const handlePeriodBarClick = (bar) => {
+    if (viewMode === "week" && bar.date) {
+      setViewMode("day");
+      setDate(bar.date);
+      return;
+    }
+    if (viewMode === "month" && bar.startDate) {
+      setViewMode("week");
+      setDate(bar.startDate);
+    }
+  };
+
   return (
     <div className="min-h-screen max-w-5xl mx-auto px-6 py-10">
       <header className="flex flex-wrap items-center justify-between gap-4 mb-6">
@@ -198,7 +225,22 @@ export default function App() {
           <h1 className="text-2xl font-bold text-slate-100">Daily Mirror</h1>
           <p className="text-slate-500 text-sm">A private, on-device look at your day.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex rounded-lg border border-slate-700 overflow-hidden">
+            {VIEW_MODES.map(({ id, label }) => (
+              <button
+                key={id}
+                onClick={() => setViewMode(id)}
+                className={`px-3 py-2 text-sm font-medium transition-colors ${
+                  viewMode === id
+                    ? "bg-indigo-600 text-white"
+                    : "bg-slate-800 text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <input
             type="date"
             value={date}
@@ -206,13 +248,15 @@ export default function App() {
             onChange={(e) => setDate(e.target.value)}
             className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200"
           />
-          <button
-            onClick={summarize}
-            disabled={summarizing || !hasChrome}
-            className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 text-white text-sm font-semibold rounded-lg px-4 py-2"
-          >
-            {summarizing ? "Writing…" : analysis ? "Re-summarize" : "✨ Summarize"}
-          </button>
+          {isDayView && (
+            <button
+              onClick={summarize}
+              disabled={summarizing || !hasChrome}
+              className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 text-white text-sm font-semibold rounded-lg px-4 py-2"
+            >
+              {summarizing ? "Writing…" : analysis ? "Re-summarize" : "✨ Summarize"}
+            </button>
+          )}
           <button
             onClick={() => setSettingsOpen(true)}
             title="Settings"
@@ -223,7 +267,7 @@ export default function App() {
         </div>
       </header>
 
-      {days.length > 0 && (
+      {days.length > 0 && isDayView && (
         <div className="flex flex-wrap gap-2 mb-6">
           {days.map((d) => (
             <button
@@ -235,13 +279,13 @@ export default function App() {
                   : "bg-slate-800/60 text-slate-400 border-slate-700 hover:border-slate-600"
               }`}
             >
-              {d === todayStr() ? "Today" : d}
+              {formatDisplayDate(d)}
             </button>
           ))}
         </div>
       )}
 
-      {!loading && hasActivity && (
+      {!loading && hasActivity && isDayView && (
         <nav className="flex gap-1 mb-6 border-b border-slate-700/60">
           {TABS.map(({ id, label }) => (
             <button
@@ -263,11 +307,29 @@ export default function App() {
         <div className="mb-6 p-3 rounded-lg bg-red-950/60 border border-red-900/60 text-red-300 text-sm">{msg}</div>
       )}
 
-      {loading ? (
+      {!isDayView ? (
+        periodLoading ? (
+          <div className="text-slate-500 py-20 text-center">Loading…</div>
+        ) : !periodHasActivity ? (
+          <div className="text-slate-500 py-20 text-center">
+            No activity tracked for this {viewMode}. Browse a little, then come back.
+          </div>
+        ) : (
+          <PeriodChart
+            title={periodData.title}
+            subtitle={periodData.subtitle}
+            metricLabel={periodData.metricLabel}
+            totalActive={periodData.totalActive}
+            bars={periodData.bars}
+            selectedKey={viewMode === "week" ? date : undefined}
+            onBarClick={handlePeriodBarClick}
+          />
+        )
+      ) : loading ? (
         <div className="text-slate-500 py-20 text-center">Loading…</div>
       ) : !hasActivity ? (
         <div className="text-slate-500 py-20 text-center">
-          No activity tracked for {date}. Browse a little, then come back.
+          No activity tracked for {formatDisplayDate(date)}. Browse a little, then come back.
         </div>
       ) : (
         <div>

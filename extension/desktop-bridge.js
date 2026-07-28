@@ -1,7 +1,9 @@
 // Chrome ↔ macOS companion bridge via native messaging.
 // Requires install: macos/Scripts/install-native-host.sh
 
-import { dmLog, dmWarn, dmError, errMsg } from "./log.js";
+import { dmLog, dmDebug, dmWarn, dmError, dmRateLimited, isDmVerbose, errMsg } from "./log.js";
+
+const BRIDGE_OK_LOG_MS = 30_000;
 
 const NATIVE_HOST = "com.dailymirror.companion";
 
@@ -47,7 +49,14 @@ function settleInFlight(fn, value) {
   const { resolve, reject, reqType, start } = inFlight;
   const ms = Math.round(performance.now() - start);
   if (fn === resolve) {
-    dmLog("bridge", "nativeRequest.ok", { type: reqType, ok: true, ms });
+    const fields = { type: reqType, ok: true, ms };
+    if (isDmVerbose()) {
+      dmLog("bridge", "nativeRequest.ok", fields);
+    } else {
+      dmRateLimited(`bridge.ok.${reqType}`, BRIDGE_OK_LOG_MS, () => {
+        dmLog("bridge", "nativeRequest.ok", fields);
+      });
+    }
   } else {
     dmError("bridge", "nativeRequest.fail", { type: reqType, ok: false, ms, err: errMsg(value) });
   }
@@ -113,7 +122,7 @@ export function nativeRequest(message, timeoutMs = NATIVE_TIMEOUT_MS) {
   const reqType = message?.type || "unknown";
   const start = performance.now();
 
-  dmLog("bridge", "nativeRequest.start", { type: reqType, timeoutMs });
+  dmDebug("bridge", "nativeRequest.start", { type: reqType, timeoutMs });
 
   return new Promise((resolve, reject) => {
     requestQueue.push({ message, timeoutMs, resolve, reject, reqType, start });

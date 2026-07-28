@@ -1,22 +1,53 @@
 // Structured console logging for Daily Mirror extension backend.
 // Filter DevTools with: [DailyMirror]
+// Full hot-path verbosity: chrome.storage.local.set({ dmLogVerbose: true })
 
 const PREFIX = "[DailyMirror]";
+const VERBOSE_KEY = "dmLogVerbose";
 
-function fmt(area, op, fields = {}) {
-  return { area, op, ...fields };
+let verbose = false;
+let verboseInitStarted = false;
+
+function initVerboseFlag() {
+  if (verboseInitStarted) return;
+  verboseInitStarted = true;
+  if (typeof chrome === "undefined" || !chrome.storage?.local) return;
+  chrome.storage.local.get(VERBOSE_KEY, (result) => {
+    verbose = !!result?.[VERBOSE_KEY];
+  });
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area !== "local" || !changes[VERBOSE_KEY]) return;
+    verbose = !!changes[VERBOSE_KEY].newValue;
+  });
+}
+
+initVerboseFlag();
+
+/** True when dmLogVerbose is set in chrome.storage.local. */
+export function isDmVerbose() {
+  return verbose;
+}
+
+function emit(method, area, op, fields = {}) {
+  method(`${PREFIX} ${area}.${op}`, fields);
 }
 
 export function dmLog(area, op, fields) {
-  console.log(PREFIX, fmt(area, op, fields));
+  emit(console.log, area, op, fields);
+}
+
+/** Hot-path / debug-only success logs — silent unless dmLogVerbose is on. */
+export function dmDebug(area, op, fields) {
+  if (!verbose) return;
+  emit(console.log, area, op, fields);
 }
 
 export function dmWarn(area, op, fields) {
-  console.warn(PREFIX, fmt(area, op, fields));
+  emit(console.warn, area, op, fields);
 }
 
 export function dmError(area, op, fields) {
-  console.error(PREFIX, fmt(area, op, fields));
+  emit(console.error, area, op, fields);
 }
 
 export async function dmTimed(area, op, asyncFn, extra = {}) {

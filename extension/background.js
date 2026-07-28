@@ -19,7 +19,7 @@ import { refreshHistoryCacheForDate } from "./history.js";
 import { IDLE_SECONDS } from "./constants.js";
 import { getDesktopDayMetrics, getDesktopLiveStatus } from "./desktop-bridge.js";
 import { mergeDesktopWithChrome } from "./desktop-merge.js";
-import { dmLog, dmWarn, dmError, dmOnChange, dmRateLimited, errMsg } from "./log.js";
+import { dmLog, dmWarn, dmError, dmOnChange, dmRateLimited, isDmVerbose, errMsg } from "./log.js";
 
 const MIN_ACTIVITY_SECONDS = 120; // 2 min before auto-summary runs
 const RETENTION_DAYS = 120;
@@ -272,6 +272,19 @@ function liveCacheSnapshot() {
   };
 }
 
+/** Change-detection key: excludes ticking fields like idleSeconds. */
+function liveCacheChangeKey() {
+  const s = liveCacheSnapshot();
+  return {
+    hostInstalled: s.hostInstalled,
+    hostReachable: s.hostReachable,
+    dataOk: s.dataOk,
+    dataReason: s.dataReason,
+    dataStatus: s.dataStatus,
+    appName: s.appName,
+  };
+}
+
 function scheduleDesktopLivePoll(delayMs) {
   if (desktopLivePollTimer) clearTimeout(desktopLivePollTimer);
   desktopLivePollTimer = setTimeout(() => {
@@ -296,8 +309,8 @@ async function refreshDesktopLiveCache() {
       data,
     };
     const ms = Math.round(performance.now() - start);
-    dmOnChange("liveCache", liveCacheSnapshot(), (state) => {
-      dmLog("sw", "liveCache.update", { ok: true, ms, ...state });
+    dmOnChange("liveCache", liveCacheChangeKey(), () => {
+      dmLog("sw", "liveCache.update", { ok: true, ms, ...liveCacheSnapshot() });
     });
     dmRateLimited("liveCache.ok", 30_000, () => {
       dmLog("sw", "liveCache.poll", { ok: true, ms, ...liveCacheSnapshot() });
@@ -311,8 +324,8 @@ async function refreshDesktopLiveCache() {
       data: desktopLiveCache.data,
     };
     const ms = Math.round(performance.now() - start);
-    dmOnChange("liveCache", liveCacheSnapshot(), (state) => {
-      dmError("sw", "liveCache.update", { ok: false, ms, err: errMsg(err), ...state });
+    dmOnChange("liveCache", liveCacheChangeKey(), () => {
+      dmError("sw", "liveCache.update", { ok: false, ms, err: errMsg(err), ...liveCacheSnapshot() });
     });
     const backoff =
       DESKTOP_LIVE_BACKOFF_MS[
@@ -374,11 +387,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     getDesktopDayMetrics(message.date)
       .then((data) => {
         markDesktopHostKnown();
-        dmLog("sw", "message.GET_DESKTOP_DAY.ok", {
+        const fields = {
           date: message.date,
           ms: Math.round(performance.now() - start),
           appCount: data?.apps?.length ?? 0,
-        });
+        };
+        if (isDmVerbose()) {
+          dmLog("sw", "message.GET_DESKTOP_DAY.ok", fields);
+        } else {
+          dmRateLimited("message.GET_DESKTOP_DAY.ok", 30_000, () => {
+            dmLog("sw", "message.GET_DESKTOP_DAY.ok", fields);
+          });
+        }
         sendResponse({ ok: true, data });
       })
       .catch((err) => {

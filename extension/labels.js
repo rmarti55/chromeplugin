@@ -35,6 +35,13 @@ export const LABELS = {
   dayByHour: "Your day by hour",
   dayByCategory: "Your day by category",
 
+  // Period breakdown views (window + grain)
+  viewDay: "Day",
+  viewWeek: "Week",
+  viewMonth: "Month",
+  daysOfWeek: "Days of this week",
+  weeksOfMonth: "Weeks of this month",
+
   // Tooltips
   tipInChrome: "Chrome was the app on screen.",
   tipUsingChrome: "You were using the keyboard or mouse in Chrome.",
