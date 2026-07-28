@@ -1,0 +1,104 @@
+{
+  "computeSessions": [
+    {
+      "url": "https://news.com",
+      "domain": "news.com",
+      "title": "News",
+      "seconds": 1800,
+      "visits": 0
+    }
+  ],
+  "computeOpenSessions": [
+    {
+      "url": "https://news.com",
+      "domain": "news.com",
+      "title": "News",
+      "seconds": 1800
+    }
+  ],
+  "computePresenceSeconds": 1800,
+  "computeHourly": [
+    {
+      "hour": "10am",
+      "hourStartTs": 1785254400000,
+      "activity": "news.com (15m)",
+      "total": 900,
+      "domains": [
+        {
+          "domain": "news.com",
+          "seconds": 900
+        }
+      ]
+    },
+    {
+      "hour": "11am",
+      "hourStartTs": 1785258000000,
+      "activity": "news.com (15m)",
+      "total": 900,
+      "domains": [
+        {
+          "domain": "news.com",
+          "seconds": 900
+        }
+      ]
+    }
+  ],
+  "computeHourlyPresence": [
+    [
+      1785254400000,
+      900
+    ],
+    [
+      1785258000000,
+      900
+    ]
+  ],
+  "dayMetricsShape": {
+    "activeSeconds": 1800,
+    "openSeconds": 1800,
+    "sessions": [
+      {
+        "url": "https://news.com",
+        "domain": "news.com",
+        "title": "News",
+        "seconds": 1800,
+        "visits": 0,
+        "openSeconds": 1800
+      }
+    ],
+    "openByDomain": [
+      {
+        "domain": "news.com",
+        "seconds": 1800
+      }
+    ],
+    "timeline": [
+      {
+        "hour": "10am",
+        "hourStartTs": 1785254400000,
+        "activity": "news.com (15m)",
+        "total": 900,
+        "domains": [
+          {
+            "domain": "news.com",
+            "seconds": 900
+          }
+        ],
+        "openSeconds": 900
+      },
+      {
+        "hour": "11am",
+        "hourStartTs": 1785258000000,
+        "activity": "news.com (15m)",
+        "total": 900,
+        "domains": [
+          {
+            "domain": "news.com",
+            "seconds": 900
+          }
+        ],
+        "openSeconds": 900
+      }
+    ]
+  }
+}

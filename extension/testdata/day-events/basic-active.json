@@ -1,0 +1,11 @@
+{
+  "name": "basic-active",
+  "dayStart": "2026-07-28T00:00:00",
+  "dayEnd": "2026-07-29T00:00:00",
+  "now": "2026-07-28T10:15:00",
+  "events": [
+    { "type": "active", "ts": "2026-07-28T10:00:00", "url": "https://example.com/page", "domain": "example.com", "title": "Example" },
+    { "type": "idle", "ts": "2026-07-28T10:05:00" },
+    { "type": "blur", "ts": "2026-07-28T10:10:00" }
+  ]
+}

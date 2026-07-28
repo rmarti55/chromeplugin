@@ -1,0 +1,14 @@
+{
+  "computeSessions": [],
+  "computeOpenSessions": [],
+  "computePresenceSeconds": 0,
+  "computeHourly": [],
+  "computeHourlyPresence": [],
+  "dayMetricsShape": {
+    "activeSeconds": 0,
+    "openSeconds": 0,
+    "sessions": [],
+    "openByDomain": [],
+    "timeline": []
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "preceding-boundary",
+  "dayStart": "2026-07-28T00:00:00",
+  "dayEnd": "2026-07-29T00:00:00",
+  "now": "2026-07-28T08:30:00",
+  "events": [
+    { "type": "active", "ts": "2026-07-27T23:50:00", "url": "https://overnight.com", "domain": "overnight.com", "title": "Overnight" },
+    { "type": "blur", "ts": "2026-07-28T08:10:00" }
+  ]
+}

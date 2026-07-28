@@ -1,0 +1,150 @@
+{
+  "computeSessions": [
+    {
+      "url": "https://github.com/org/repo",
+      "domain": "github.com",
+      "title": "Repo",
+      "seconds": 300,
+      "visits": 1
+    },
+    {
+      "url": "https://github.com/org/repo/issues",
+      "domain": "github.com",
+      "title": "Issues",
+      "seconds": 300,
+      "visits": 1
+    },
+    {
+      "url": "https://mail.google.com/mail/u/0/#inbox",
+      "domain": "mail.google.com",
+      "title": "Inbox",
+      "seconds": 300,
+      "visits": 1
+    },
+    {
+      "url": "https://mail.google.com/mail/u/0/#sent",
+      "domain": "mail.google.com",
+      "title": "Sent",
+      "seconds": 300,
+      "visits": 0
+    }
+  ],
+  "computeOpenSessions": [
+    {
+      "url": "https://github.com/org/repo",
+      "domain": "github.com",
+      "title": "Repo",
+      "seconds": 300
+    },
+    {
+      "url": "https://github.com/org/repo/issues",
+      "domain": "github.com",
+      "title": "Issues",
+      "seconds": 300
+    },
+    {
+      "url": "https://mail.google.com/mail/u/0/#inbox",
+      "domain": "mail.google.com",
+      "title": "Inbox",
+      "seconds": 300
+    },
+    {
+      "url": "https://mail.google.com/mail/u/0/#sent",
+      "domain": "mail.google.com",
+      "title": "Sent",
+      "seconds": 300
+    }
+  ],
+  "computePresenceSeconds": 1200,
+  "computeHourly": [
+    {
+      "hour": "2pm",
+      "hourStartTs": 1785268800000,
+      "activity": "github.com (10m), mail.google.com (10m)",
+      "total": 1200,
+      "domains": [
+        {
+          "domain": "github.com",
+          "seconds": 600
+        },
+        {
+          "domain": "mail.google.com",
+          "seconds": 600
+        }
+      ]
+    }
+  ],
+  "computeHourlyPresence": [
+    [
+      1785268800000,
+      1200
+    ]
+  ],
+  "dayMetricsShape": {
+    "activeSeconds": 1200,
+    "openSeconds": 1200,
+    "sessions": [
+      {
+        "url": "https://github.com/org/repo",
+        "domain": "github.com",
+        "title": "Repo",
+        "seconds": 300,
+        "visits": 1,
+        "openSeconds": 300
+      },
+      {
+        "url": "https://github.com/org/repo/issues",
+        "domain": "github.com",
+        "title": "Issues",
+        "seconds": 300,
+        "visits": 1,
+        "openSeconds": 300
+      },
+      {
+        "url": "https://mail.google.com/mail/u/0/#inbox",
+        "domain": "mail.google.com",
+        "title": "Inbox",
+        "seconds": 300,
+        "visits": 1,
+        "openSeconds": 300
+      },
+      {
+        "url": "https://mail.google.com/mail/u/0/#sent",
+        "domain": "mail.google.com",
+        "title": "Sent",
+        "seconds": 300,
+        "visits": 0,
+        "openSeconds": 300
+      }
+    ],
+    "openByDomain": [
+      {
+        "domain": "github.com",
+        "seconds": 600
+      },
+      {
+        "domain": "mail.google.com",
+        "seconds": 600
+      }
+    ],
+    "timeline": [
+      {
+        "hour": "2pm",
+        "hourStartTs": 1785268800000,
+        "activity": "github.com (10m), mail.google.com (10m)",
+        "total": 1200,
+        "domains": [
+          {
+            "domain": "github.com",
+            "seconds": 600
+          },
+          {
+            "domain": "mail.google.com",
+            "seconds": 600
+          }
+        ],
+        "openSeconds": 1200
+      }
+    ]
+  }
+}

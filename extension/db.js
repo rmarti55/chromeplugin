@@ -7,15 +7,32 @@
 // dependencies, so it is imported by both the service worker and the dashboard.
 
 import { computeDomainHints, domainHintsToObject } from "./heuristics.js";
-import { visitKey } from "./siteIdentity.js";
+import {
+  MAX_GAP_MS,
+  formatDuration,
+  computeSessions,
+  computeOpenSessions,
+  computePresenceSeconds,
+  computeHourly,
+  computeHourlyPresence,
+  aggregateOpenByDomain,
+  mergeSessionsWithOpen,
+} from "./session-derive.js";
+
+export {
+  MAX_GAP_MS,
+  formatDuration,
+  computeSessions,
+  computeOpenSessions,
+  computePresenceSeconds,
+  computeHourly,
+  computeHourlyPresence,
+  aggregateOpenByDomain,
+  mergeSessionsWithOpen,
+} from "./session-derive.js";
 
 const DB_NAME = "chrome-activity";
 const DB_VERSION = 1;
-
-// Ignore any single interval longer than this (ms). Guards against counting
-// time when the browser was left focused but an idle event was missed (e.g. the
-// service worker died and the laptop was closed without a lock event).
-const MAX_GAP_MS = 30 * 60 * 1000;
 
 let dbPromise = null;
 
@@ -191,351 +208,8 @@ export function classifyDay({
   return "unconfirmed";
 }
 
-// Human duration with second precision: "8s", "5m 12s", "1h 4m".
-export function formatDuration(seconds) {
-  seconds = Math.max(0, Math.round(seconds));
-  if (seconds < 60) return `${seconds}s`;
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  if (m < 60) return s ? `${m}m ${s}s` : `${m}m`;
-  const h = Math.floor(m / 60);
-  const mm = m % 60;
-  return mm ? `${h}h ${mm}m` : `${h}h`;
-}
-
-// Clock-hour label for a timestamp: "9am", "12pm", "2pm".
-function formatHour(ts) {
-  const h = new Date(ts).getHours();
-  const ap = h < 12 ? "am" : "pm";
-  const hr = h % 12 === 0 ? 12 : h % 12;
-  return `${hr}${ap}`;
-}
-
-// --- Session derivation (pure) ---------------------------------------------
-
-function applyEvent(state, ev, mode = "active") {
-  switch (ev.type) {
-    case "activate":
-    case "urlchange":
-    case "focus":
-    case "active":
-      if (ev.url) {
-        state.url = ev.url;
-        state.domain = ev.domain;
-        state.title = ev.title;
-      } else {
-        state.url = null;
-        state.domain = null;
-        state.title = null;
-      }
-      state.counting = true;
-      break;
-    case "blur":
-    case "locked":
-      state.counting = false;
-      break;
-    case "idle":
-      if (mode === "active") state.counting = false;
-      break;
-  }
-}
-
-function applyPresenceEvent(state, ev) {
-  switch (ev.type) {
-    case "activate":
-    case "urlchange":
-    case "focus":
-    case "active":
-      state.counting = true;
-      break;
-    case "blur":
-    case "locked":
-      state.counting = false;
-      break;
-    case "idle":
-      break;
-  }
-}
-
-// Total seconds Chrome was the focused app (idle reading still counts).
-export function computePresenceSeconds(events, dayStart, dayEnd, now) {
-  const clipHi = Math.min(dayEnd, now ?? dayEnd);
-  const state = { counting: false };
-  let lastTs = null;
-  let total = 0;
-
-  const accrue = (untilTs) => {
-    if (lastTs === null || !state.counting) return;
-    if (untilTs - lastTs > MAX_GAP_MS) return;
-    const a = Math.max(lastTs, dayStart);
-    const b = Math.min(untilTs, clipHi);
-    if (b > a) total += (b - a) / 1000;
-  };
-
-  for (const ev of events) {
-    accrue(ev.ts);
-    applyPresenceEvent(state, ev);
-    lastTs = ev.ts;
-  }
-  accrue(clipHi);
-  return Math.round(total);
-}
-
-// Reduce an ordered event list into per-URL sessions for a day.
-// `events` MUST include one event preceding dayStart (if any) so we know the
-// active state at the day boundary. `now` caps counting for the live/today view.
-export function computeSessions(events, dayStart, dayEnd, now) {
-  const clipHi = Math.min(dayEnd, now ?? dayEnd);
-  const byUrl = new Map(); // url -> { url, domain, title, seconds, visits }
-
-  const touch = (url, domain, title) => {
-    let s = byUrl.get(url);
-    if (!s) {
-      s = { url, domain, title, seconds: 0, visits: 0 };
-      byUrl.set(url, s);
-    }
-    if (title) s.title = title;
-    return s;
-  };
-
-  const state = { url: null, domain: null, title: null, counting: false };
-  let lastTs = null;
-  let lastVisitKey = null;
-  let afterBoundary = false;
-
-  const accrue = (untilTs) => {
-    if (lastTs === null || !state.counting || !state.url) return;
-    if (untilTs - lastTs > MAX_GAP_MS) return; // missed idle guard
-    const a = Math.max(lastTs, dayStart);
-    const b = Math.min(untilTs, clipHi);
-    const durMs = b - a;
-    if (durMs > 0) touch(state.url, state.domain, state.title).seconds += durMs / 1000;
-  };
-
-  for (const ev of events) {
-    accrue(ev.ts);
-    // Visits = real navigations only (urlchange), not tab switches or focus returns.
-    if (ev.type === "urlchange" && ev.url) {
-      const key = visitKey(ev.url, ev.domain);
-      if (afterBoundary || key !== lastVisitKey) {
-        touch(ev.url, ev.domain, ev.title).visits += 1;
-        lastVisitKey = key;
-        afterBoundary = false;
-      }
-    }
-    if (["blur", "idle", "locked"].includes(ev.type)) {
-      afterBoundary = true;
-    }
-    applyEvent(state, ev);
-    lastTs = ev.ts;
-  }
-  // Tail: from the last event up to "now" (only matters for today).
-  accrue(clipHi);
-
-  const sessions = [...byUrl.values()]
-    .map((s) => ({ ...s, seconds: Math.round(s.seconds) }))
-    .filter((s) => s.seconds > 0)
-    .sort((a, b) => b.seconds - a.seconds);
-
-  return sessions;
-}
-
-// Per-URL Chrome-open time (idle reading counts; blur/lock stops).
-export function computeOpenSessions(events, dayStart, dayEnd, now) {
-  const clipHi = Math.min(dayEnd, now ?? dayEnd);
-  const byUrl = new Map();
-
-  const touch = (url, domain, title) => {
-    let s = byUrl.get(url);
-    if (!s) {
-      s = { url, domain, title, seconds: 0 };
-      byUrl.set(url, s);
-    }
-    if (title) s.title = title;
-    return s;
-  };
-
-  const state = { url: null, domain: null, title: null, counting: false };
-  let lastTs = null;
-
-  const accrue = (untilTs) => {
-    if (lastTs === null || !state.counting || !state.url) return;
-    if (untilTs - lastTs > MAX_GAP_MS) return;
-    const a = Math.max(lastTs, dayStart);
-    const b = Math.min(untilTs, clipHi);
-    const durMs = b - a;
-    if (durMs > 0) touch(state.url, state.domain, state.title).seconds += durMs / 1000;
-  };
-
-  const applyOpenTab = (state, ev) => {
-    switch (ev.type) {
-      case "activate":
-      case "urlchange":
-      case "focus":
-      case "active":
-        if (ev.url) {
-          state.url = ev.url;
-          state.domain = ev.domain;
-          state.title = ev.title;
-        } else {
-          state.url = null;
-          state.domain = null;
-          state.title = null;
-        }
-        state.counting = true;
-        break;
-      case "blur":
-      case "locked":
-        state.counting = false;
-        break;
-      case "idle":
-        break;
-    }
-  };
-
-  for (const ev of events) {
-    accrue(ev.ts);
-    applyOpenTab(state, ev);
-    lastTs = ev.ts;
-  }
-  accrue(clipHi);
-
-  return [...byUrl.values()]
-    .map((s) => ({ ...s, seconds: Math.round(s.seconds) }))
-    .filter((s) => s.seconds > 0)
-    .sort((a, b) => b.seconds - a.seconds);
-}
-
-export function aggregateOpenByDomain(openSessions) {
-  const byDomain = new Map();
-  for (const s of openSessions) {
-    let d = byDomain.get(s.domain);
-    if (!d) {
-      d = { domain: s.domain, seconds: 0 };
-      byDomain.set(s.domain, d);
-    }
-    d.seconds += s.seconds;
-  }
-  return [...byDomain.values()]
-    .map((d) => ({ domain: d.domain, seconds: d.seconds }))
-    .sort((a, b) => b.seconds - a.seconds);
-}
-
-export function mergeSessionsWithOpen(activeSessions, openSessions) {
-  const openByUrl = new Map(openSessions.map((s) => [s.url, s.seconds]));
-  const merged = activeSessions.map((s) => ({
-    ...s,
-    openSeconds: openByUrl.get(s.url) || 0,
-  }));
-  for (const o of openSessions) {
-    if (!merged.some((s) => s.url === o.url)) {
-      merged.push({
-        url: o.url,
-        domain: o.domain,
-        title: o.title,
-        seconds: 0,
-        visits: 0,
-        openSeconds: o.seconds,
-      });
-    }
-  }
-  return merged.sort((a, b) => b.seconds - a.seconds || b.openSeconds - a.openSeconds);
-}
-
-// Reduce events into a per-clock-hour timeline derived from REAL timestamps
-// (never invented). Each returned entry is { hour: "2pm", activity } where
-// activity names the top domain(s) active that hour with their measured time,
-// so it can never be "Unknown". Same shape Timeline.jsx already renders.
-export function computeHourly(events, dayStart, dayEnd, now) {
-  const clipHi = Math.min(dayEnd, now ?? dayEnd);
-  const hours = new Map(); // hourStartTs -> Map(domain -> seconds)
-  const state = { url: null, domain: null, title: null, counting: false };
-  let lastTs = null;
-
-  const addChunk = (from, to) => {
-    let cur = from;
-    while (cur < to) {
-      const d = new Date(cur);
-      d.setMinutes(0, 0, 0);
-      const hs = d.getTime();
-      const chunkEnd = Math.min(to, hs + 3600000);
-      let m = hours.get(hs);
-      if (!m) {
-        m = new Map();
-        hours.set(hs, m);
-      }
-      m.set(state.domain, (m.get(state.domain) || 0) + (chunkEnd - cur) / 1000);
-      cur = chunkEnd;
-    }
-  };
-  const accrue = (untilTs) => {
-    if (lastTs === null || !state.counting || !state.domain) return;
-    if (untilTs - lastTs > MAX_GAP_MS) return;
-    const a = Math.max(lastTs, dayStart);
-    const b = Math.min(untilTs, clipHi);
-    if (b > a) addChunk(a, b);
-  };
-
-  for (const ev of events) {
-    accrue(ev.ts);
-    applyEvent(state, ev);
-    lastTs = ev.ts;
-  }
-  accrue(clipHi);
-
-  return [...hours.entries()]
-    .sort((a, b) => a[0] - b[0])
-    .map(([hs, m]) => {
-      const domains = [...m.entries()]
-        .map(([domain, seconds]) => ({ domain, seconds: Math.round(seconds) }))
-        .filter((d) => d.seconds > 0)
-        .sort((a, b) => b.seconds - a.seconds);
-      const total = domains.reduce((s, d) => s + d.seconds, 0);
-      const activity = domains
-        .slice(0, 2)
-        .map((d) => `${d.domain} (${formatDuration(d.seconds)})`)
-        .join(", ");
-      return { hour: formatHour(hs), hourStartTs: hs, activity, total, domains };
-    })
-    .filter((h) => h.total > 0);
-}
-
-// Chrome-open seconds bucketed by clock hour (idle still counts).
-export function computeHourlyPresence(events, dayStart, dayEnd, now) {
-  const clipHi = Math.min(dayEnd, now ?? dayEnd);
-  const hours = new Map();
-  const state = { counting: false };
-  let lastTs = null;
-
-  const addChunk = (from, to) => {
-    let cur = from;
-    while (cur < to) {
-      const d = new Date(cur);
-      d.setMinutes(0, 0, 0);
-      const hs = d.getTime();
-      const chunkEnd = Math.min(to, hs + 3600000);
-      hours.set(hs, (hours.get(hs) || 0) + (chunkEnd - cur) / 1000);
-      cur = chunkEnd;
-    }
-  };
-
-  const accrue = (untilTs) => {
-    if (lastTs === null || !state.counting) return;
-    if (untilTs - lastTs > MAX_GAP_MS) return;
-    const a = Math.max(lastTs, dayStart);
-    const b = Math.min(untilTs, clipHi);
-    if (b > a) addChunk(a, b);
-  };
-
-  for (const ev of events) {
-    accrue(ev.ts);
-    applyPresenceEvent(state, ev);
-    lastTs = ev.ts;
-  }
-  accrue(clipHi);
-
-  return hours;
-}
+// --- Session derivation (re-exported from session-derive.js) ------------------
+// See session-derive.js for computeSessions, computeHourly, etc.
 
 // Load events for a day (including the preceding boundary event).
 export async function getEventsForDay(dateStr, now = Date.now()) {

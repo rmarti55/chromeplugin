@@ -1,0 +1,10 @@
+{
+  "name": "hourly-boundary",
+  "dayStart": "2026-07-28T00:00:00",
+  "dayEnd": "2026-07-29T00:00:00",
+  "now": "2026-07-28T11:30:00",
+  "events": [
+    { "type": "active", "ts": "2026-07-28T10:45:00", "url": "https://news.com", "domain": "news.com", "title": "News" },
+    { "type": "blur", "ts": "2026-07-28T11:15:00" }
+  ]
+}

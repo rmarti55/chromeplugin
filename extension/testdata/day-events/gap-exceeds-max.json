@@ -1,0 +1,10 @@
+{
+  "name": "gap-exceeds-max",
+  "dayStart": "2026-07-28T00:00:00",
+  "dayEnd": "2026-07-29T00:00:00",
+  "now": "2026-07-28T12:00:00",
+  "events": [
+    { "type": "active", "ts": "2026-07-28T09:00:00", "url": "https://a.com", "domain": "a.com", "title": "A" },
+    { "type": "active", "ts": "2026-07-28T10:00:00", "url": "https://b.com", "domain": "b.com", "title": "B" }
+  ]
+}

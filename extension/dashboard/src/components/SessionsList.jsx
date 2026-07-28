@@ -7,7 +7,7 @@ import { HistoryReferenceDetails } from "./HistoryReference.jsx";
 import { Card } from "./ui/Card.jsx";
 import { SectionHeader } from "./ui/SectionHeader.jsx";
 import { Metric } from "./ui/Metric.jsx";
-import { ActivityBar } from "./ui/ActivityBar.jsx";
+import { ActivityMetricsColumn } from "./ui/ActivityMetricsColumn.jsx";
 
 const ALIGNMENT_LABELS = {
   aligned: null,
@@ -73,25 +73,20 @@ function SimpleRow({ row, maxActive }) {
   const label = row.label || row.session?.title || domain;
 
   return (
-    <div className="flex items-start justify-between text-sm gap-3 py-2.5 border-b border-stone-100 last:border-0">
-      <div className="min-w-0 flex-1">
-        <div className="font-medium text-stone-800 truncate">{label}</div>
-        <div className="flex items-center gap-3 mt-0.5 min-w-0">
-          <div className="text-stone-600 text-sm truncate min-w-0 flex-1">
-            <SiteSubtitle row={row} />
-          </div>
-          <ActivityBar
-            value={row.mirrorActiveSeconds || 0}
-            max={maxActive}
-            className="shrink-0 w-16 sm:w-20"
-          />
-        </div>
+    <div className="py-2.5 border-b border-stone-100 last:border-0 text-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="font-medium text-stone-800 truncate min-w-0 flex-1">{label}</div>
+        <ActivityMetricsColumn
+          navs={row.isNoiseRollup ? undefined : row.mirrorVisits}
+          metric={
+            <Metric className="w-16 text-sm">{formatDuration(row.mirrorActiveSeconds || 0)}</Metric>
+          }
+          barValue={row.mirrorActiveSeconds || 0}
+          barMax={maxActive}
+        />
       </div>
-      <div className="shrink-0 flex items-center gap-3 text-right tabular-nums">
-        {!row.isNoiseRollup && row.mirrorVisits > 0 && (
-          <span className="text-stone-600 text-sm">{row.mirrorVisits} navs</span>
-        )}
-        <Metric className="w-16 text-sm">{formatDuration(row.mirrorActiveSeconds || 0)}</Metric>
+      <div className="text-stone-600 text-sm truncate mt-0.5 pr-[calc(7.75rem+0.75rem)] sm:pr-[calc(9.25rem+0.75rem)]">
+        <SiteSubtitle row={row} />
       </div>
     </div>
   );

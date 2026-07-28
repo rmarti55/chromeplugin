@@ -1,0 +1,75 @@
+{
+  "computeSessions": [
+    {
+      "url": "https://example.com/page",
+      "domain": "example.com",
+      "title": "Example",
+      "seconds": 300,
+      "visits": 0
+    }
+  ],
+  "computeOpenSessions": [
+    {
+      "url": "https://example.com/page",
+      "domain": "example.com",
+      "title": "Example",
+      "seconds": 600
+    }
+  ],
+  "computePresenceSeconds": 600,
+  "computeHourly": [
+    {
+      "hour": "10am",
+      "hourStartTs": 1785254400000,
+      "activity": "example.com (5m)",
+      "total": 300,
+      "domains": [
+        {
+          "domain": "example.com",
+          "seconds": 300
+        }
+      ]
+    }
+  ],
+  "computeHourlyPresence": [
+    [
+      1785254400000,
+      600
+    ]
+  ],
+  "dayMetricsShape": {
+    "activeSeconds": 300,
+    "openSeconds": 600,
+    "sessions": [
+      {
+        "url": "https://example.com/page",
+        "domain": "example.com",
+        "title": "Example",
+        "seconds": 300,
+        "visits": 0,
+        "openSeconds": 600
+      }
+    ],
+    "openByDomain": [
+      {
+        "domain": "example.com",
+        "seconds": 600
+      }
+    ],
+    "timeline": [
+      {
+        "hour": "10am",
+        "hourStartTs": 1785254400000,
+        "activity": "example.com (5m)",
+        "total": 300,
+        "domains": [
+          {
+            "domain": "example.com",
+            "seconds": 300
+          }
+        ],
+        "openSeconds": 600
+      }
+    ]
+  }
+}

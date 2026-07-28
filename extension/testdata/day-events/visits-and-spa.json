@@ -1,0 +1,13 @@
+{
+  "name": "visits-and-spa",
+  "dayStart": "2026-07-28T00:00:00",
+  "dayEnd": "2026-07-29T00:00:00",
+  "now": "2026-07-28T15:00:00",
+  "events": [
+    { "type": "urlchange", "ts": "2026-07-28T14:00:00", "url": "https://github.com/org/repo", "domain": "github.com", "title": "Repo" },
+    { "type": "urlchange", "ts": "2026-07-28T14:05:00", "url": "https://github.com/org/repo/issues", "domain": "github.com", "title": "Issues" },
+    { "type": "urlchange", "ts": "2026-07-28T14:10:00", "url": "https://mail.google.com/mail/u/0/#inbox", "domain": "mail.google.com", "title": "Inbox" },
+    { "type": "urlchange", "ts": "2026-07-28T14:15:00", "url": "https://mail.google.com/mail/u/0/#sent", "domain": "mail.google.com", "title": "Sent" },
+    { "type": "blur", "ts": "2026-07-28T14:20:00" }
+  ]
+}
