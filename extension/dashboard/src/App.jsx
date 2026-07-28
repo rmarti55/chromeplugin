@@ -14,6 +14,7 @@ import { mergeCategories } from "../../categorize-apps.js";
 import { fetchDesktopDay } from "./desktop-client.js";
 import {
   loadDayRollup,
+  shiftAnchorByDays,
   shiftAnchorByWeeks,
   shiftAnchorByMonth,
   weekContainsToday,
@@ -26,10 +27,12 @@ import { ThemeList } from "./components/ThemeList.jsx";
 import { Timeline } from "./components/Timeline.jsx";
 import { SessionsList } from "./components/SessionsList.jsx";
 import { LiveStatus } from "./components/LiveStatus.jsx";
+import { DayClocks } from "./components/DayClocks.jsx";
 import { DesktopApps } from "./components/DesktopApps.jsx";
 import { Settings } from "./components/Settings.jsx";
 import { PeriodChart } from "./components/PeriodChart.jsx";
 import { usePeriodData } from "./hooks/usePeriodData.js";
+import { Card } from "./components/ui/Card.jsx";
 import { dmLog, dmWarn, dmError, dmOnChange } from "../../log.js";
 import { LABELS } from "../../labels.js";
 
@@ -245,12 +248,25 @@ export default function App() {
   };
 
   const shiftPeriod = (delta) => {
-    if (viewMode === "week") setDate(shiftAnchorByWeeks(date, delta));
+    if (viewMode === "day") setDate(shiftAnchorByDays(date, delta));
+    else if (viewMode === "week") setDate(shiftAnchorByWeeks(date, delta));
     else if (viewMode === "month") setDate(shiftAnchorByMonth(date, delta));
   };
 
   const canGoNextPeriod =
-    viewMode === "week" ? !weekContainsToday(date) : viewMode === "month" ? !monthContainsToday(date) : false;
+    viewMode === "day"
+      ? date < todayStr()
+      : viewMode === "week"
+        ? !weekContainsToday(date)
+        : viewMode === "month"
+          ? !monthContainsToday(date)
+          : false;
+
+  const periodPrevLabel =
+    viewMode === "day" ? LABELS.prevDay : viewMode === "week" ? LABELS.prevWeek : LABELS.prevMonth;
+  const periodNextLabel =
+    viewMode === "day" ? LABELS.nextDay : viewMode === "week" ? LABELS.nextWeek : LABELS.nextMonth;
+  const periodCenterLabel = isDayView ? formatDisplayDate(date) : periodData?.subtitle ?? "";
 
   return (
     <div className="min-h-screen max-w-5xl mx-auto px-6 py-10 bg-paper">
@@ -259,7 +275,7 @@ export default function App() {
           <h1 className="font-serif text-3xl font-medium tracking-tight text-stone-900">Daily Mirror</h1>
           <p className="text-sm text-stone-700 mt-1">A private, on-device look at your day.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-nowrap items-center gap-3 shrink-0">
           <div className="flex rounded-lg border border-stone-200 overflow-hidden shadow-sm">
             {VIEW_MODES.map(({ id, label }) => (
               <button
@@ -280,17 +296,19 @@ export default function App() {
             value={date}
             max={todayStr()}
             onChange={(e) => setDate(e.target.value)}
-            className="bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm text-stone-800 shadow-sm"
+            className="w-[10.5rem] bg-white border border-stone-200 rounded-lg px-3 py-2 text-sm text-stone-800 shadow-sm"
           />
-          {isDayView && (
-            <button
-              onClick={summarize}
-              disabled={summarizing || !hasChrome || !hasActivity}
-              className="bg-accent hover:bg-accent-hover disabled:bg-stone-300 disabled:text-stone-600 text-white text-sm font-semibold rounded-lg px-4 py-2 transition-colors"
-            >
-              {summarizing ? "Writing…" : analysis ? "Re-summarize" : "Summarize"}
-            </button>
-          )}
+          <button
+            onClick={summarize}
+            disabled={!isDayView || summarizing || !hasChrome || !hasActivity}
+            aria-hidden={!isDayView}
+            tabIndex={isDayView ? 0 : -1}
+            className={`min-w-[7.5rem] bg-accent hover:bg-accent-hover disabled:bg-stone-300 disabled:text-stone-600 text-white text-sm font-semibold rounded-lg px-4 py-2 transition-colors ${
+              !isDayView ? "invisible pointer-events-none" : ""
+            }`}
+          >
+            {summarizing ? "Writing…" : analysis ? "Re-summarize" : "Summarize"}
+          </button>
           <button
             onClick={() => setSettingsOpen(true)}
             title="Settings"
@@ -301,28 +319,26 @@ export default function App() {
         </div>
       </header>
 
-      {!isDayView && (
-        <div className="flex items-center justify-between gap-4 mb-6">
-          <button
-            type="button"
-            onClick={() => shiftPeriod(-1)}
-            className="text-sm text-stone-600 hover:text-stone-900 border border-stone-200 bg-white rounded-lg px-3 py-2 shadow-sm transition-colors"
-          >
-            ← {viewMode === "week" ? LABELS.prevWeek : LABELS.prevMonth}
-          </button>
-          {periodData?.subtitle && (
-            <span className="text-sm font-medium text-stone-800">{periodData.subtitle}</span>
-          )}
-          <button
-            type="button"
-            onClick={() => shiftPeriod(1)}
-            disabled={!canGoNextPeriod}
-            className="text-sm text-stone-600 hover:text-stone-900 border border-stone-200 bg-white rounded-lg px-3 py-2 shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {viewMode === "week" ? LABELS.nextWeek : LABELS.nextMonth} →
-          </button>
-        </div>
-      )}
+      <div className="flex items-center justify-between gap-4 mb-6 min-h-[2.5rem]">
+        <button
+          type="button"
+          onClick={() => shiftPeriod(-1)}
+          className="min-w-[9.5rem] text-sm text-stone-600 hover:text-stone-900 border border-stone-200 bg-white rounded-lg px-3 py-2 shadow-sm transition-colors text-left"
+        >
+          ← {periodPrevLabel}
+        </button>
+        <span className="text-sm font-medium text-stone-800 text-center flex-1 min-h-[1.25rem]">
+          {periodCenterLabel}
+        </span>
+        <button
+          type="button"
+          onClick={() => shiftPeriod(1)}
+          disabled={!canGoNextPeriod}
+          className="min-w-[9.5rem] text-sm text-stone-600 hover:text-stone-900 border border-stone-200 bg-white rounded-lg px-3 py-2 shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-right"
+        >
+          {periodNextLabel} →
+        </button>
+      </div>
 
       {days.length > 0 && (
         <div className="flex flex-wrap gap-2 mb-6">
@@ -439,20 +455,23 @@ export default function App() {
                   </p>
                 </div>
               )}
-              {isToday && (
+              {isToday ? (
                 <LiveStatus
                   openSeconds={data.openSeconds}
                   activeSeconds={data.activeSeconds}
                   desktop={data.desktop}
                   onLiveChange={setMacLive}
                 />
+              ) : (
+                <Card className="flex justify-end py-4">
+                  <DayClocks
+                    openSeconds={data.openSeconds}
+                    activeSeconds={data.activeSeconds}
+                    desktop={data.desktop}
+                  />
+                </Card>
               )}
-              <DesktopApps
-                desktop={data.desktop}
-                chromeOpenSeconds={data.openSeconds}
-                chromeActiveSeconds={data.activeSeconds}
-                live={macLive}
-              />
+              <DesktopApps desktop={data.desktop} live={macLive} />
             </div>
           )}
 

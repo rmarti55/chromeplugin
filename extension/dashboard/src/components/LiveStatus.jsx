@@ -67,6 +67,7 @@ function macRowTextClass(status) {
   return "text-stone-700";
 }
 
+/** Today-only live dots + day clocks. Past days use DayClocks alone in App. */
 export function LiveStatus({ openSeconds, activeSeconds, desktop, onLiveChange }) {
   const [live, setLive] = useState({ chrome: { status: "capturing" }, mac: null });
   const macDayAvailable = !!desktop?.available;

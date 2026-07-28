@@ -64,6 +64,10 @@ export function getWeekRangeLabel(days) {
   return `${formatShortDate(days[0])} – ${formatShortDate(days[days.length - 1])}`;
 }
 
+export function shiftAnchorByDays(dateStr, delta) {
+  return addDays(dateStr, delta);
+}
+
 export function shiftAnchorByWeeks(dateStr, delta) {
   return addDays(dateStr, delta * 7);
 }

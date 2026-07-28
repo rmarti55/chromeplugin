@@ -1,25 +1,7 @@
 import { Card } from "./ui/Card.jsx";
 import { SectionHeader } from "./ui/SectionHeader.jsx";
 import { Metric } from "./ui/Metric.jsx";
-
-const THEME_INTENSITY = [
-  "bg-accent-soft text-accent-dark border-accent/40",
-  "bg-accent-softer text-accent-dark border-accent/25",
-  "bg-white text-stone-800 border-stone-200",
-  "bg-white text-stone-800 border-stone-200",
-  "bg-white text-stone-700 border-stone-200",
-  "bg-white text-stone-700 border-stone-200",
-];
-
-function themeIntensityClass(minutes, maxMinutes) {
-  if (maxMinutes <= 0) return THEME_INTENSITY[THEME_INTENSITY.length - 1];
-  const ratio = minutes / maxMinutes;
-  const step = Math.min(
-    THEME_INTENSITY.length - 1,
-    Math.floor((1 - ratio) * THEME_INTENSITY.length)
-  );
-  return THEME_INTENSITY[step];
-}
+import { ActivityBar } from "./ui/ActivityBar.jsx";
 
 export function ThemeList({ themes }) {
   if (!themes || themes.length === 0) return null;
@@ -34,12 +16,13 @@ export function ThemeList({ themes }) {
         {sortedThemes.map((theme, i) => (
           <div
             key={i}
-            className={`p-4 rounded-lg border ${themeIntensityClass(theme.minutes || 0, maxMinutes)}`}
+            className="p-4 rounded-lg border border-stone-200 bg-white"
           >
             <div className="flex items-center justify-between mb-2">
               <span className="font-medium">{theme.name}</span>
               <Metric className="text-sm">{theme.minutes} min</Metric>
             </div>
+            <ActivityBar value={theme.minutes || 0} max={maxMinutes} className="w-full mb-3" />
             <div className="flex flex-wrap gap-1.5">
               {(theme.sites || []).map((site) => (
                 <span key={site} className="text-sm px-2 py-0.5 rounded-full bg-stone-900/5 text-stone-700">

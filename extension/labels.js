@@ -26,6 +26,9 @@ export const LABELS = {
   inUse: "Active",
 
   otherApps: "Other apps",
+  appsToday: "Apps",
+  appsTodaySubtitle: "Apps that were in front, including Chrome. Site breakdown is on the Sites tab.",
+  appsTodayEmpty: "No app time recorded yet for this day.",
   chromeHistory: "Chrome History",
   visits: "visits",
 
@@ -52,7 +55,7 @@ export const LABELS = {
 
   // Unified day story
   browsingChapter: "Chrome",
-  otherAppsToday: "Other apps today",
+  otherAppsToday: "Apps", // legacy key — Overview now uses appsToday
   dayByHour: "Your day by hour",
   dayByCategory: "Your day by category",
 
@@ -62,6 +65,8 @@ export const LABELS = {
   viewMonth: "Month",
   daysOfWeek: "Days of this week",
   weeksOfMonth: "Weeks of this month",
+  prevDay: "Previous day",
+  nextDay: "Next day",
   prevWeek: "Previous week",
   nextWeek: "Next week",
   prevMonth: "Previous month",

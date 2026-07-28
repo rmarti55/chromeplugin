@@ -56,27 +56,28 @@ When the native messaging bridge is installed, Daily Mirror tells **one day stor
 ### Hierarchy
 
 1. **Hero clocks — Passive on Mac / Active on Mac**  
-   Authoritative day totals from the macOS companion. One app on screen at a time; this is what the header and popup lead with. The AI summary leads with named activity, not these clock pairs.
+   Authoritative day totals from the macOS companion. One app on screen at a time; this is what the header and popup lead with. The AI summary leads with named activity, not these clock pairs. Shown for **every** day on Overview (not only today).
 
-2. **Chrome chapter — Passive in Chrome / Active in Chrome**  
-   Website detail from the Chrome extension event log. Shown nested under Mac totals — **not** added to them.
+2. **Apps list (including Chrome)**  
+   All Mac apps that were frontmost — Cursor, Slack, **Chrome**, etc. — in one ranked list using the same Mac presence/active clocks. Chrome is a peer row, not a separate Overview chapter.
 
-3. **Other apps**  
-   Non-browser apps from the macOS companion (Cursor, Slack, etc.), listed separately.
+3. **Chrome site detail — Passive in Chrome / Active in Chrome**  
+   Website breakdown from the Chrome extension event log. Lives on the **Sites** tab (and nested under Mac totals in header clocks) — **not** added to Mac totals, and **not** a second Overview list.
 
 ### Where each clock appears
 
-| Surface | Mac hero | Chrome chapter | Other apps |
+| Surface | Mac hero | Apps list (incl. Chrome) | Chrome site detail |
 |---|---|---|---|
-| Overview header / popup | Yes | Nested below | List in Overview |
-| Sites tab | — | Per-site active in Chrome | — |
+| Overview header | Yes (every day) | Ranked list in Overview | Nested under Mac in header clocks |
+| Sites tab | — | — | Per-site active in Chrome |
 | Categories / Timeline | Merged day view when companion connected | Included in merge | Included in merge |
-| AI summary | Context only (not narrated as clock pairs) | Site detail + categories/themes | Named first in narrative |
+| AI summary | Context only (not narrated as clock pairs) | Named apps first | Site detail + categories/themes |
 
 ### Dedup rules (important)
 
 - Do **not** add Chrome site minutes on top of “Chrome as an app” in the same total.
-- Overview header: **Passive on Mac** is primary; **Passive in Chrome** is the Chrome chapter beneath it.
+- Overview header: **Passive on Mac** is primary; **Passive in Chrome** is browsing detail beneath it.
+- Overview app list ranks Chrome by Mac frontmost time (same as other apps); site minutes stay on Sites.
 - Site breakdown, Chrome categories, and Chrome timeline minutes stay **extension-owned**.
 - When Chrome is frontmost, macOS records `com.google.Chrome` (or your browser bundle ID); site detail still comes only from Chrome tab events.
 

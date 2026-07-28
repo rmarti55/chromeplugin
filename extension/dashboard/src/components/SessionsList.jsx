@@ -7,6 +7,7 @@ import { HistoryReferenceDetails } from "./HistoryReference.jsx";
 import { Card } from "./ui/Card.jsx";
 import { SectionHeader } from "./ui/SectionHeader.jsx";
 import { Metric } from "./ui/Metric.jsx";
+import { ActivityBar } from "./ui/ActivityBar.jsx";
 
 const ALIGNMENT_LABELS = {
   aligned: null,
@@ -67,7 +68,7 @@ function SiteSubtitle({ row }) {
   );
 }
 
-function SimpleRow({ row }) {
+function SimpleRow({ row, maxActive }) {
   const domain = row.domain;
   const label = row.label || row.session?.title || domain;
 
@@ -75,8 +76,15 @@ function SimpleRow({ row }) {
     <div className="flex items-start justify-between text-sm gap-3 py-2.5 border-b border-stone-100 last:border-0">
       <div className="min-w-0 flex-1">
         <div className="font-medium text-stone-800 truncate">{label}</div>
-        <div className="text-stone-600 text-sm truncate mt-0.5">
-          <SiteSubtitle row={row} />
+        <div className="flex items-center gap-3 mt-0.5 min-w-0">
+          <div className="text-stone-600 text-sm truncate min-w-0 flex-1">
+            <SiteSubtitle row={row} />
+          </div>
+          <ActivityBar
+            value={row.mirrorActiveSeconds || 0}
+            max={maxActive}
+            className="shrink-0 w-16 sm:w-20"
+          />
         </div>
       </div>
       <div className="shrink-0 flex items-center gap-3 text-right tabular-nums">
@@ -169,6 +177,7 @@ export function SessionsList({ sessions, categoryCache, domainHints = {}, histor
   const unified = buildUnifiedRows(sessions, historyAlignment, categoryCache);
   const hasHistory = historyAlignment?.available;
   const displayRows = unified.slice(0, 25);
+  const maxActive = Math.max(0, ...displayRows.map((r) => r.mirrorActiveSeconds || 0));
 
   if (!displayRows.length && (!sessions || sessions.length === 0)) return null;
 
@@ -181,7 +190,7 @@ export function SessionsList({ sessions, categoryCache, domainHints = {}, histor
 
       <div>
         {displayRows.map((row) => (
-          <SimpleRow key={row.domain} row={row} />
+          <SimpleRow key={row.domain} row={row} maxActive={maxActive} />
         ))}
       </div>
 
