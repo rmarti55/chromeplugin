@@ -4,6 +4,7 @@
 
 html,
 body {
+  font-size: 16px;
   background: #f8f6f3;
   color: #1c1917;
   font-family: "Source Sans 3", system-ui, sans-serif;

@@ -10,7 +10,7 @@ import { LABELS } from "../../../labels.js";
 import { DayClocks } from "./DayClocks.jsx";
 import { Card } from "./ui/Card.jsx";
 
-function LiveRow({ status, children, textClassName = "text-stone-600" }) {
+function LiveRow({ status, children, textClassName = "text-stone-700" }) {
   const offline = status === "offline";
   const paused = status === "paused";
   const showPing = !offline && !paused;
@@ -39,7 +39,7 @@ function ChromeLiveContent({ chrome }) {
     return (
       <>
         {LABELS.usingChromeOn}{" "}
-        <span className="text-stone-900 font-medium">{chrome.domain}</span>
+        <span className="text-stone-900 font-semibold">{chrome.domain}</span>
       </>
     );
   }
@@ -55,7 +55,7 @@ function MacLiveContent({ mac }) {
     return (
       <>
         {LABELS.usingMacOn}{" "}
-        <span className="text-stone-900 font-medium">{mac.appName}</span>
+        <span className="text-stone-900 font-semibold">{mac.appName}</span>
       </>
     );
   }
@@ -64,7 +64,7 @@ function MacLiveContent({ mac }) {
 
 function macRowTextClass(status) {
   if (status === "offline") return "text-red-700";
-  return "text-stone-600";
+  return "text-stone-700";
 }
 
 export function LiveStatus({ openSeconds, activeSeconds, desktop, onLiveChange }) {

@@ -39,9 +39,10 @@ function compactFields(fields) {
   }
 }
 
-function emit(method, area, op, fields = {}) {
+function emit(method, area, op, fields = {}, singleArg = false) {
   const msg = `${PREFIX} ${area}.${op}${compactFields(fields)}`;
-  method(msg, fields);
+  if (singleArg) method(msg);
+  else method(msg, fields);
 }
 
 export function dmLog(area, op, fields) {
@@ -55,11 +56,11 @@ export function dmDebug(area, op, fields) {
 }
 
 export function dmWarn(area, op, fields) {
-  emit(console.warn, area, op, fields);
+  emit(console.warn, area, op, fields, true);
 }
 
 export function dmError(area, op, fields) {
-  emit(console.error, area, op, fields);
+  emit(console.error, area, op, fields, true);
 }
 
 export async function dmTimed(area, op, asyncFn, extra = {}) {

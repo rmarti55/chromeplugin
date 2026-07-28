@@ -1,85 +1,129 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500&family=Source+Sans+3:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { font-size: 16px; }
     body {
       width: 380px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: 'Source Sans 3', system-ui, sans-serif;
       padding: 18px;
-      background: #0f172a;
-      color: #e2e8f0;
+      background: #f8f6f3;
+      color: #1c1917;
+      -webkit-font-smoothing: antialiased;
     }
-    h1 { font-size: 16px; font-weight: 700; color: #f8fafc; }
-    .sub { font-size: 11px; color: #64748b; margin-bottom: 16px; }
+    h1 {
+      font-family: 'Newsreader', Georgia, serif;
+      font-size: 18px;
+      font-weight: 500;
+      color: #1c1917;
+      letter-spacing: -0.01em;
+    }
+    .sub { font-size: 14px; color: #57534e; margin-top: 2px; margin-bottom: 16px; }
 
     .today-card {
-      padding: 12px; background: #1e293b; border-radius: 8px; margin-bottom: 12px;
+      padding: 14px;
+      background: #ffffff;
+      border: 1px solid #e7e5e4;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px 0 rgb(28 25 23 / 0.05);
     }
     .section-label {
-      font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
-      text-transform: uppercase; color: #64748b; margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #44403c;
+      margin-bottom: 8px;
     }
     .today-divider {
-      height: 1px; background: #334155; margin: 10px 0;
+      height: 1px;
+      background: #e7e5e4;
+      margin: 10px 0;
     }
 
     .live-row {
-      display: flex; align-items: center; gap: 8px; min-width: 0;
-      font-size: 12px; color: #cbd5e1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      font-size: 14px;
+      color: #44403c;
     }
     .live-row + .live-row { margin-top: 6px; }
-    .live-row.offline { color: #fca5a5; }
-    .live-prefix { color: #94a3b8; }
-    .live-focus { color: #f8fafc; font-weight: 500; font-variant-numeric: tabular-nums; }
+    .live-row.offline { color: #b91c1c; }
+    .live-prefix { color: #57534e; }
+    .live-focus { color: #1c1917; font-weight: 600; font-variant-numeric: tabular-nums; }
 
-    .dot { width: 9px; height: 9px; border-radius: 50%; background: #64748b; flex-shrink: 0; }
-    .dot.capturing { background: #22c55e; box-shadow: 0 0 0 0 rgba(34,197,94,0.7); animation: pulse 1.6s infinite; }
-    .dot.idle { background: #0ea5e9; box-shadow: 0 0 0 0 rgba(14,165,233,0.7); animation: pulseIdle 1.6s infinite; }
-    .dot.paused { background: #f59e0b; }
-    .dot.offline { background: #ef4444; }
+    .dot { width: 9px; height: 9px; border-radius: 50%; background: #78716c; flex-shrink: 0; }
+    .dot.capturing { background: #16a34a; box-shadow: 0 0 0 0 rgba(22,163,74,0.45); animation: pulse 1.6s infinite; }
+    .dot.idle { background: #0284c7; box-shadow: 0 0 0 0 rgba(2,132,199,0.4); animation: pulseIdle 1.6s infinite; }
+    .dot.paused { background: #d97706; }
+    .dot.offline { background: #dc2626; }
     @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.6); }
-      70% { box-shadow: 0 0 0 7px rgba(34,197,94,0); }
-      100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+      0% { box-shadow: 0 0 0 0 rgba(22,163,74,0.4); }
+      70% { box-shadow: 0 0 0 7px rgba(22,163,74,0); }
+      100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); }
     }
     @keyframes pulseIdle {
-      0% { box-shadow: 0 0 0 0 rgba(14,165,233,0.6); }
-      70% { box-shadow: 0 0 0 7px rgba(14,165,233,0); }
-      100% { box-shadow: 0 0 0 0 rgba(14,165,233,0); }
+      0% { box-shadow: 0 0 0 0 rgba(2,132,199,0.35); }
+      70% { box-shadow: 0 0 0 7px rgba(2,132,199,0); }
+      100% { box-shadow: 0 0 0 0 rgba(2,132,199,0); }
     }
 
-    #stats { font-size: 12px; color: #94a3b8; }
-    .stat-block + .stat-block { margin-top: 10px; padding-top: 10px; border-top: 1px solid #334155; }
+    #stats { font-size: 14px; color: #57534e; }
+    .stat-block + .stat-block { margin-top: 10px; padding-top: 10px; border-top: 1px solid #e7e5e4; }
     .stat-row {
-      display: flex; align-items: baseline; gap: 6px;
-      font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap;
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
       margin-bottom: 4px;
     }
-    .stat-primary { color: #818cf8; font-weight: 600; }
-    .stat-secondary { color: #cbd5e1; }
-    .stat-sep { color: #475569; }
-    .stat-caption { font-size: 10px; color: #64748b; }
-    .stat-meta { font-size: 11px; color: #64748b; margin-top: 8px; }
+    .stat-primary { color: #2f5561; font-weight: 600; }
+    .stat-secondary { color: #44403c; font-weight: 500; }
+    .stat-sep { color: #78716c; }
+    .stat-caption { font-size: 14px; font-weight: 500; color: #44403c; }
+    .stat-meta { font-size: 14px; color: #57534e; margin-top: 8px; }
 
     button {
-      width: 100%; padding: 10px; border: none; border-radius: 6px; font-size: 13px;
-      font-weight: 600; cursor: pointer; margin-top: 6px; transition: background 0.15s;
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: 'Source Sans 3', system-ui, sans-serif;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 6px;
+      transition: background 0.15s, border-color 0.15s;
     }
-    #summarizeBtn { background: #6366f1; color: white; }
-    #summarizeBtn:hover { background: #4f46e5; }
-    #summarizeBtn:disabled { background: #4b5563; cursor: not-allowed; }
-    #dashboardBtn { background: #1e293b; color: #cbd5e1; border: 1px solid #334155; }
-    #dashboardBtn:hover { background: #334155; }
+    #summarizeBtn { background: #3d6b7a; color: white; }
+    #summarizeBtn:hover { background: #264a54; }
+    #summarizeBtn:disabled { background: #d6d3d1; color: #57534e; cursor: not-allowed; }
+    #dashboardBtn {
+      background: #ffffff;
+      color: #44403c;
+      border: 1px solid #e7e5e4;
+    }
+    #dashboardBtn:hover { background: #fafaf9; border-color: #d6d3d1; }
 
-    #status { margin-top: 12px; font-size: 12px; padding: 8px; border-radius: 6px; display: none; }
-    #status.success { display: block; background: #064e3b; color: #6ee7b7; }
-    #status.error { display: block; background: #450a0a; color: #fca5a5; }
-    #status.loading { display: block; background: #1e1b4b; color: #a5b4fc; }
+    #status { margin-top: 12px; font-size: 14px; padding: 8px 10px; border-radius: 8px; display: none; border: 1px solid transparent; }
+    #status.success { display: block; background: #f0fdf4; color: #166534; border-color: #bbf7d0; }
+    #status.error { display: block; background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+    #status.loading { display: block; background: #e4eef1; color: #2f5561; border-color: #dce8eb; }
 
-    .hint { font-size: 10px; color: #64748b; margin-top: 12px; text-align: center; }
-    .hint a { color: #818cf8; }
+    .hint { font-size: 14px; color: #57534e; margin-top: 12px; text-align: center; line-height: 1.5; }
+    .hint a { color: #3d6b7a; text-decoration: none; font-weight: 500; }
+    .hint a:hover { color: #264a54; text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -96,7 +140,7 @@
     <div id="stats">Loading today…</div>
   </div>
 
-  <button id="summarizeBtn">✨ Summarize today</button>
+  <button id="summarizeBtn">Summarize today</button>
   <button id="dashboardBtn">Open dashboard</button>
 
   <div id="status"></div>

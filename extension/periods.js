@@ -26,6 +26,12 @@ function parseLocalDate(dateStr) {
   return new Date(y, m - 1, d);
 }
 
+function addDays(dateStr, delta) {
+  const d = parseLocalDate(dateStr);
+  d.setDate(d.getDate() + delta);
+  return toDateStr(d.getTime());
+}
+
 function formatShortDate(dateStr) {
   const d = parseLocalDate(dateStr);
   return `${MONTH_NAMES[d.getMonth()].slice(0, 3)} ${d.getDate()}`;
@@ -56,6 +62,27 @@ export function getWeekRangeLabel(days) {
     return `${MONTH_NAMES[start.getMonth()]} ${start.getDate()}–${end.getDate()}`;
   }
   return `${formatShortDate(days[0])} – ${formatShortDate(days[days.length - 1])}`;
+}
+
+export function shiftAnchorByWeeks(dateStr, delta) {
+  return addDays(dateStr, delta * 7);
+}
+
+export function shiftAnchorByMonth(dateStr, delta) {
+  const d = parseLocalDate(dateStr);
+  d.setMonth(d.getMonth() + delta);
+  return toDateStr(d.getTime());
+}
+
+export function weekContainsToday(anchorDateStr, now = Date.now()) {
+  const today = toDateStr(now);
+  return getCalendarWeekDays(anchorDateStr).includes(today);
+}
+
+export function monthContainsToday(anchorDateStr, now = Date.now()) {
+  const anchor = parseLocalDate(anchorDateStr);
+  const today = parseLocalDate(toDateStr(now));
+  return anchor.getFullYear() === today.getFullYear() && anchor.getMonth() === today.getMonth();
 }
 
 /** Calendar weeks overlapping the anchor's month (Mon–Sun buckets, days clipped to month). */
@@ -117,28 +144,36 @@ export function formatDayBarLabel(dateStr, todayStr) {
   return DAY_NAMES[d.getDay()];
 }
 
-/** Primary tracked seconds for a day — Mac in-use when companion data exists. */
+/** Primary bar metric — prefer Mac active when present, else best of Mac/Chrome. */
 export function primarySecondsFromDay(chromeMetrics, desktopMerged) {
-  if (desktopMerged?.available) {
-    return {
-      activeSeconds: desktopMerged.deviceActiveSeconds || 0,
-      openSeconds: desktopMerged.devicePresenceSeconds || 0,
-      source: "mac",
-    };
+  const chromeActive = chromeMetrics.activeSeconds || 0;
+  const chromeOpen = chromeMetrics.openSeconds || 0;
+  const macActive = desktopMerged?.deviceActiveSeconds || 0;
+  const macOpen = desktopMerged?.devicePresenceSeconds || 0;
+
+  if (desktopMerged?.available && macActive > 0) {
+    return { activeSeconds: macActive, openSeconds: macOpen, source: "mac" };
   }
+
+  const activeSeconds = Math.max(chromeActive, macActive);
+  const openSeconds = Math.max(chromeOpen, macOpen);
   return {
-    activeSeconds: chromeMetrics.activeSeconds || 0,
-    openSeconds: chromeMetrics.openSeconds || 0,
-    source: "chrome",
+    activeSeconds,
+    openSeconds,
+    source: macActive > chromeActive ? "mac" : "chrome",
   };
 }
 
 export async function loadDayRollup(dateStr, now, fetchDesktopDay) {
   const emptyDesktop = { payload: null, fetchOk: false };
-  const [metrics, desktopResult] = await Promise.all([
-    getDayMetrics(dateStr, now),
-    fetchDesktopDay ? fetchDesktopDay(dateStr) : Promise.resolve(emptyDesktop),
-  ]);
+  const today = toDateStr(now);
+  const metrics = await getDayMetrics(dateStr, now);
+
+  let desktopResult = emptyDesktop;
+  if (fetchDesktopDay && dateStr <= today) {
+    desktopResult = await fetchDesktopDay(dateStr);
+  }
+
   const desktopRaw = desktopResult?.payload ?? null;
   const desktopFetchOk = desktopResult?.fetchOk ?? false;
   const desktop = mergeDesktopWithChrome(metrics, desktopRaw);
@@ -164,13 +199,19 @@ export async function loadDayRollup(dateStr, now, fetchDesktopDay) {
   };
 }
 
+async function loadDayRollupsSequential(dates, now, fetchDesktopDay) {
+  const rollups = [];
+  for (const d of dates) {
+    rollups.push(await loadDayRollup(d, now, fetchDesktopDay));
+  }
+  return rollups;
+}
+
 /** Week breakdown: window = calendar week, grain = day. */
 export async function getWeekBreakdown(anchorDateStr, { now = Date.now(), fetchDesktopDay } = {}) {
   const days = getCalendarWeekDays(anchorDateStr);
   const today = toDateStr(now);
-  const rollups = await Promise.all(
-    days.map((d) => loadDayRollup(d, now, fetchDesktopDay))
-  );
+  const rollups = await loadDayRollupsSequential(days, now, fetchDesktopDay);
 
   const bars = rollups.map((r) => ({
     key: r.date,
@@ -205,9 +246,7 @@ export async function getWeekBreakdown(anchorDateStr, { now = Date.now(), fetchD
 export async function getMonthBreakdown(anchorDateStr, { now = Date.now(), fetchDesktopDay } = {}) {
   const { monthLabel, buckets } = getMonthWeekBuckets(anchorDateStr);
   const allDays = [...new Set(buckets.flatMap((b) => b.days))];
-  const rollups = await Promise.all(
-    allDays.map((d) => loadDayRollup(d, now, fetchDesktopDay))
-  );
+  const rollups = await loadDayRollupsSequential(allDays, now, fetchDesktopDay);
   const byDate = new Map(rollups.map((r) => [r.date, r]));
 
   const bars = buckets.map((bucket) => {

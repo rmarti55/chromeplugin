@@ -3,12 +3,12 @@ import { SectionHeader } from "./ui/SectionHeader.jsx";
 import { Metric } from "./ui/Metric.jsx";
 
 const THEME_INTENSITY = [
-  "bg-amber-100 text-amber-950 border-amber-300",
-  "bg-amber-50 text-amber-900 border-amber-200",
-  "bg-accent-softer text-amber-900 border-amber-100",
+  "bg-accent-soft text-accent-dark border-accent/40",
+  "bg-accent-softer text-accent-dark border-accent/25",
+  "bg-white text-stone-800 border-stone-200",
   "bg-white text-stone-800 border-stone-200",
   "bg-white text-stone-700 border-stone-200",
-  "bg-white text-stone-600 border-stone-100",
+  "bg-white text-stone-700 border-stone-200",
 ];
 
 function themeIntensityClass(minutes, maxMinutes) {
@@ -42,7 +42,7 @@ export function ThemeList({ themes }) {
             </div>
             <div className="flex flex-wrap gap-1.5">
               {(theme.sites || []).map((site) => (
-                <span key={site} className="text-xs px-2 py-0.5 rounded-full bg-stone-900/5 text-stone-600">
+                <span key={site} className="text-sm px-2 py-0.5 rounded-full bg-stone-900/5 text-stone-700">
                   {site}
                 </span>
               ))}

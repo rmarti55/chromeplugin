@@ -13,7 +13,7 @@ import { LABELS } from "../../../labels.js";
 import { Card } from "./ui/Card.jsx";
 import { SectionHeader } from "./ui/SectionHeader.jsx";
 
-const BAR_COLORS = ["#92400e", "#b45309", "#d97706", "#f59e0b", "#fbbf24", "#fde68a"];
+const BAR_COLORS = ["#264a54", "#2f5561", "#3d6b7a", "#5a8a96", "#8eb5c0", "#c5dce2"];
 
 function barColor(seconds, maxSeconds) {
   if (maxSeconds <= 0) return BAR_COLORS[BAR_COLORS.length - 1];
@@ -27,7 +27,7 @@ const tooltipStyle = {
   border: "1px solid #e7e5e4",
   borderRadius: "8px",
   color: "#1c1917",
-  fontSize: "13px",
+  fontSize: "14px",
 };
 
 export function CategoryChart({ categories, merged }) {
@@ -53,8 +53,8 @@ export function CategoryChart({ categories, merged }) {
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={chartData} layout="vertical">
             <CartesianGrid strokeDasharray="3 3" stroke="#e7e5e4" />
-            <XAxis type="number" stroke="#a8a29e" fontSize={12} tickFormatter={(v) => formatDuration(v)} />
-            <YAxis type="category" dataKey="name" stroke="#a8a29e" fontSize={12} width={120} />
+            <XAxis type="number" stroke="#57534e" fontSize={14} tickFormatter={(v) => formatDuration(v)} />
+            <YAxis type="category" dataKey="name" stroke="#57534e" fontSize={14} width={120} />
             <Tooltip contentStyle={tooltipStyle} formatter={(value) => [formatDuration(value), "Time"]} />
             <Bar dataKey="seconds" radius={[0, 4, 4, 0]}>
               {chartData.map((entry, index) => (

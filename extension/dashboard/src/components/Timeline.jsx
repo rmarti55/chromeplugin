@@ -25,17 +25,17 @@ export function Timeline({ timeline, merged }) {
               <div>
                 <span className="text-sm font-medium text-stone-800">{entry.hour}</span>
                 {merged && entry.desktopTotal > 0 && (
-                  <span className="text-xs text-stone-500 ml-2">
+                  <span className="text-sm text-stone-600 ml-2">
                     {LABELS.otherApps}: {formatDuration(entry.desktopTotal)}
                   </span>
                 )}
                 {entry.openSeconds > 0 && (
-                  <span className="text-xs text-stone-500 ml-2">
+                  <span className="text-sm text-stone-600 ml-2">
                     {LABELS.inChrome}: {formatDuration(entry.openSeconds)}
                   </span>
                 )}
                 {!merged && entry.desktopTotal > 0 && (
-                  <span className="text-xs text-stone-500 ml-2">
+                  <span className="text-sm text-stone-600 ml-2">
                     Apps: {formatDuration(entry.desktopTotal)}
                   </span>
                 )}

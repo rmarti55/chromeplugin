@@ -6,7 +6,7 @@ import {
   popupDotClass,
 } from "./live.js";
 import { mergeDesktopWithChrome } from "./desktop-merge.js";
-import { LABELS, clockPairCaption, quietDaySummary } from "./labels.js";
+import { LABELS, scopedClockCaption, quietDaySummary } from "./labels.js";
 
 const $ = (id) => document.getElementById(id);
 const todayStr = () => toDateStr(Date.now());
@@ -176,19 +176,19 @@ async function renderStats(desktopResult) {
     if (desktop.available) {
       el.appendChild(
         statBlock({
-          label: LABELS.todayOnMac,
+          label: LABELS.macChapter,
           primary: desktop.devicePresenceSeconds || 0,
           secondary: desktop.deviceActiveSeconds || 0,
-          caption: clockPairCaption(),
+          caption: scopedClockCaption("mac"),
           title: `${LABELS.tipPassiveMac} ${LABELS.tipActiveMac}`,
         })
       );
       el.appendChild(
         statBlock({
-          label: LABELS.browsingChapter,
+          label: LABELS.chromeChapter,
           primary: openSeconds,
           secondary: activeSeconds,
-          caption: clockPairCaption(),
+          caption: scopedClockCaption("chrome"),
           title: LABELS.tipBrowsingChapter,
           nested: true,
         })
@@ -204,10 +204,10 @@ async function renderStats(desktopResult) {
 
     el.appendChild(
       statBlock({
-        label: LABELS.todayOnMac,
+        label: LABELS.chromeChapter,
         primary: openSeconds,
         secondary: activeSeconds,
-        caption: clockPairCaption(),
+        caption: scopedClockCaption("chrome"),
         title: `${LABELS.tipPassiveChrome} ${LABELS.tipActiveChrome}`,
       })
     );

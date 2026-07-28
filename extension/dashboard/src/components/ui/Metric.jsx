@@ -2,7 +2,7 @@ export function Metric({ children, muted = false, className = "" }) {
   return (
     <span
       className={`tabular-nums font-semibold ${
-        muted ? "text-stone-500 font-medium" : "text-amber-800"
+        muted ? "text-stone-700 font-medium" : "text-accent-dark"
       } ${className}`}
     >
       {children}

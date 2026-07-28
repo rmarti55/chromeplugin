@@ -9,9 +9,9 @@ Daily Mirror tracks **two clocks** from durable event logs. User-facing labels a
 | **Passive** | **Passive in Chrome** | **Passive on Mac** | App was on screen |
 | **Active** | **Active in Chrome** | **Active on Mac** | On screen + recent input |
 
-Under section headers (Today, Browsing), the short pair **Passive · Active** is used — context comes from the section label.
+Under section headers (**Mac**, **Chrome**), scoped captions spell out the clock pair — e.g. **Passive on Mac · Active on Mac** vs **Passive in Chrome · Active in Chrome**.
 
-Live status uses Chrome official idle states where applicable: **idle**, **locked** (via [`chrome.idle`](https://developer.chrome.com/docs/extensions/reference/api/idle)). When the macOS companion is installed and its menu bar tracker is running, live status is **Mac-first**: the green/amber/sky dot reflects whole-Mac capture (frontmost app, idle, lock) via a heartbeat at `~/Library/Application Support/DailyMirror/live.json`, polled through native messaging `GET_LIVE`. **Today** totals in the header are separate from live status — they come from the event log and can display even when live capture is off.
+Live status uses Chrome official idle states where applicable: **idle**, **locked** (via [`chrome.idle`](https://developer.chrome.com/docs/extensions/reference/api/idle)). When the macOS companion is installed and its menu bar tracker is running, live status is **Mac-first**: the green/amber/sky dot reflects whole-Mac capture (frontmost app, idle, lock) via a heartbeat at `~/Library/Application Support/DailyMirror/live.json`, polled through native messaging `GET_LIVE`. **Mac** day totals in the header are separate from live status — they come from the event log and can display even when live capture is off.
 
 When Mac day data exists but live capture is down, the dashboard shows a **red dot** and `Desktop app isn't running`. When the native host itself fails, the message is `Mac companion isn't working`.
 
@@ -58,7 +58,7 @@ When the native messaging bridge is installed, Daily Mirror tells **one day stor
 1. **Hero clocks — Passive on Mac / Active on Mac**  
    Authoritative day totals from the macOS companion. One app on screen at a time; this is what the header and popup lead with. The AI summary leads with named activity, not these clock pairs.
 
-2. **Browsing chapter — Passive in Chrome / Active in Chrome**  
+2. **Chrome chapter — Passive in Chrome / Active in Chrome**  
    Website detail from the Chrome extension event log. Shown nested under Mac totals — **not** added to them.
 
 3. **Other apps**  
@@ -66,7 +66,7 @@ When the native messaging bridge is installed, Daily Mirror tells **one day stor
 
 ### Where each clock appears
 
-| Surface | Mac hero | Browsing chapter | Other apps |
+| Surface | Mac hero | Chrome chapter | Other apps |
 |---|---|---|---|
 | Overview header / popup | Yes | Nested below | List in Overview |
 | Sites tab | — | Per-site active in Chrome | — |
@@ -76,7 +76,7 @@ When the native messaging bridge is installed, Daily Mirror tells **one day stor
 ### Dedup rules (important)
 
 - Do **not** add Chrome site minutes on top of “Chrome as an app” in the same total.
-- Overview header: **Passive on Mac** is primary; **Passive in Chrome** is the browsing chapter beneath it.
+- Overview header: **Passive on Mac** is primary; **Passive in Chrome** is the Chrome chapter beneath it.
 - Site breakdown, Chrome categories, and Chrome timeline minutes stay **extension-owned**.
 - When Chrome is frontmost, macOS records `com.google.Chrome` (or your browser bundle ID); site detail still comes only from Chrome tab events.
 

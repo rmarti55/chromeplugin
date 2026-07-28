@@ -44,12 +44,14 @@ export const LABELS = {
   macOffline: "Desktop app isn't running — open Daily Mirror from the menu bar",
   macHostBroken: "Mac companion isn't working — reinstall the native host",
   macLive: "Mac live",
-  todayOnMac: "Today",
+  macChapter: "Mac",
+  chromeChapter: "Chrome",
+  todayOnMac: "Mac",
   macOfflineBanner: "Desktop app isn't running. Open Daily Mirror from the menu bar to resume live Mac tracking.",
   macOfflineLaunchCmd: "open macos/DailyMirrorCompanion.app",
 
   // Unified day story
-  browsingChapter: "Browsing",
+  browsingChapter: "Chrome",
   otherAppsToday: "Other apps today",
   dayByHour: "Your day by hour",
   dayByCategory: "Your day by category",
@@ -60,6 +62,12 @@ export const LABELS = {
   viewMonth: "Month",
   daysOfWeek: "Days of this week",
   weeksOfMonth: "Weeks of this month",
+  prevWeek: "Previous week",
+  nextWeek: "Next week",
+  prevMonth: "Previous month",
+  nextMonth: "Next month",
+  periodLoadFail: "Couldn't load this period. Try again.",
+  periodAllQuiet: "No tracked activity in this period yet.",
 
   // Tooltips
   tipPassive: "On screen but no recent keyboard or mouse input.",
@@ -68,7 +76,7 @@ export const LABELS = {
   tipActiveChrome: "You were clicking or typing in Chrome.",
   tipPassiveMac: "An app was on screen but you weren't clicking or typing.",
   tipActiveMac: "You were clicking or typing on your Mac.",
-  tipBrowsingChapter: "Browser detail — not added to Mac totals.",
+  tipBrowsingChapter: "Chrome detail — not added to Mac totals.",
   tipOtherApps: "Non-browser apps that were on screen today.",
   // Legacy tip keys
   tipInChrome: "Chrome was on screen but you weren't clicking or typing.",
@@ -87,6 +95,12 @@ export const LABELS = {
 
 export function clockPairCaption() {
   return `${LABELS.passive} · ${LABELS.active}`;
+}
+
+export function scopedClockCaption(scope) {
+  return scope === "mac"
+    ? `${LABELS.passiveMac} · ${LABELS.activeMac}`
+    : `${LABELS.passiveChrome} · ${LABELS.activeChrome}`;
 }
 
 export function appTimeLabel(presenceSeconds, activeSeconds) {

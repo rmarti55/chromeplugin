@@ -62,6 +62,7 @@ export async function putEvent(ev) {
 
 // All events with ts in [startTs, endTs), ordered by ts ascending.
 export async function getEventsInRange(startTs, endTs) {
+  if (startTs >= endTs) return [];
   const db = await openDB();
   const index = tx(db, "events", "readonly").index("ts");
   const range = IDBKeyRange.bound(startTs, endTs, false, true);

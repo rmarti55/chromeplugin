@@ -7,13 +7,20 @@ export default {
         paper: "#f8f6f3",
         ink: {
           DEFAULT: "#1c1917",
+          body: "#44403c",
           secondary: "#57534e",
-          muted: "#a8a29e",
+          muted: "#78716c",
         },
         accent: {
-          DEFAULT: "#b45309",
-          soft: "#fef3c7",
-          softer: "#fffbeb",
+          DEFAULT: "#3d6b7a",
+          dark: "#2f5561",
+          hover: "#264a54",
+          soft: "#dce8eb",
+          softer: "#f4f8f9",
+        },
+        secondary: {
+          DEFAULT: "#6b5d4d",
+          soft: "#ede8e3",
         },
       },
       fontFamily: {

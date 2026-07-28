@@ -16,7 +16,7 @@ export function DailySummary({ summary, analyzedAt, includedDesktop, desktop }) 
         title="Summary"
         action={
           lastSummarized ? (
-            <span className="text-xs text-stone-400 shrink-0">
+            <span className="text-sm text-stone-600 shrink-0">
               Last summarized · {lastSummarized}
             </span>
           ) : null
@@ -24,13 +24,13 @@ export function DailySummary({ summary, analyzedAt, includedDesktop, desktop }) 
       />
 
       {staleMacSummary && (
-        <p className="text-xs text-amber-900 mb-4 p-2.5 rounded-lg bg-amber-50 border border-amber-200">
+        <p className="text-sm text-accent-dark mb-4 p-2.5 rounded-lg bg-accent-soft border border-accent/30">
           This summary was generated without Mac data — Re-summarize to include your full day.
         </p>
       )}
 
       {summary && (
-        <p className="font-serif text-base text-stone-700 leading-relaxed">{summary}</p>
+        <p className="font-serif text-base text-stone-800 leading-relaxed">{summary}</p>
       )}
     </Card>
   );
